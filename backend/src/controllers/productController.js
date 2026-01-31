@@ -140,6 +140,32 @@ const bulkDelete = async (req, res, next) => {
   }
 };
 
+
+// Add this new function to your controller file
+const updateFieldLogic = async (req, res, next) => {
+  try {
+    const { field_id, field_name, new_logic, old_logic } = req.body;
+    const userId = req.user.id;
+
+    // 1. Update the logic in MongoDB 
+    // (Assuming you have a service for this, similar to productService)
+    await fieldService.updateMongoLogic(field_id, new_logic);
+
+    // 2. EXACT STEP: Insert the history record into your new Postgres table
+    await pool.query(
+      `INSERT INTO field_schema_logs (field_name, old_logic, new_logic, created_by) 
+       VALUES ($1, $2, $3, $4)`,
+      [field_name, old_logic, new_logic, userId]
+    );
+
+    res.json({ success: true, message: "Field logic updated and logged." });
+  } catch (err) {
+    console.error("Logic Log Error:", err);
+    next(err);
+  }
+};
+
+
 module.exports = {
   getProducts,
   updateProduct,
@@ -147,4 +173,5 @@ module.exports = {
   deleteProduct,
   getProductById,
   bulkDelete,
+  updateFieldLogic,
 };

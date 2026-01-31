@@ -13,4 +13,12 @@ const getActivities = async (limit = 100) => {
   return result.rows;
 };
 
-module.exports = { logActivity, getActivities };
+const logFieldChange = async (fieldName, oldValue, newValue, userId) => {
+  await pool.query(
+    `INSERT INTO field_schema_logs (field_name, old_logic, new_logic, created_by)
+     VALUES ($1, $2, $3, $4)`,
+    [fieldName, oldValue, newValue, userId]
+  );
+};
+
+module.exports = { logActivity, getActivities ,logFieldChange,};

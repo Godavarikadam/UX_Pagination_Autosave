@@ -2,10 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
 const Form = require('../models/form'); // The model you just created
-// backend/routes/formRoutes.js
-// backend/routes/formRoutes.js
 
-// 🛡️ LOAD: Logic for the "products" table
 router.get('/get/product-form', async (req, res) => {
   try {
     const data = await Form.findOne({ tableName: "products" });
@@ -18,24 +15,56 @@ router.get('/get/product-form', async (req, res) => {
   }
 });
 
-// 🛡️ SAVE: Logic for the "products" table
+
+
 router.post('/save', async (req, res) => {
   try {
     const { entities } = req.body;
+ 
+    const userId = req.user?.id || 1; 
+
+    // 1. FETCH THE "BEFORE" STATE
+    // We get the old logic from MongoDB before we overwrite it.
+    const existingDoc = await Form.findOne({ tableName: "products" });
+    const existingEntities = existingDoc ? existingDoc.entities : [];
+
+    
+  for (const newField of entities) {
+  // 1. Find the old field
+  const oldField = existingEntities.find(e => e.dbKey === newField.dbKey);
+  
+  // 2. DEFINE the variables FIRST (This was the missing part!)
+  const oldLogic = oldField ? oldField.jsSource : "";
+  const newLogic = newField.jsSource;
+
+
+  // 3. NOW you can compare them
+  if (oldLogic !== newLogic) {
+
+    await pool.query(
+      `INSERT INTO field_schema_logs (field_name, old_logic, new_logic, created_by, log_type) 
+       VALUES ($1, $2, $3, $4, 'logic')`,
+      [newField.dbKey, oldLogic, newLogic, userId]
+    );
+  }
+}
+
     const updated = await Form.findOneAndUpdate(
       { tableName: "products" }, 
       { 
-        tableName: "products", // Explicitly set to satisfy Schema requirement
+        tableName: "products", 
         entities: entities 
       },
-      { upsert: true, new: true, runValidators: true,setDefaultsOnInsert: true }
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
     );
+
     res.json({ success: true, entities: updated.entities });
   } catch (err) {
-    console.error("Mongoose Error:", err.message);
+    console.error("Audit Log Error:", err.message);
     res.status(400).json({ success: false, error: err.message });
   }
 });
+
 // backend/routes/formRoutes.js
 router.get('/schema/:tableName', async (req, res) => {
   const { tableName } = req.params;

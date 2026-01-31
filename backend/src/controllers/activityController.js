@@ -14,36 +14,52 @@ const getActivityLogs = async (req, res, next) => {
     const offset = (page - 1) * limit;
 
     let queryParams = [];
-    let whereClause = "";
+    let whereClauseProduct = "";
+    let whereClauseField = "";
 
+    // Role-based filtering logic
     if (role !== 'admin') {
-      whereClause = "WHERE a.created_by = $1"; 
+      whereClauseProduct = "WHERE a.created_by = $1";
+      whereClauseField = "WHERE created_by = $1";
       queryParams.push(parseInt(userId));
     }
 
+    // 1. Fetch Product Logs (Existing Logic)
     const p1 = queryParams.length + 1;
     const p2 = queryParams.length + 2;
- 
-    const result = await pool.query(
+    const productResult = await pool.query(
       `SELECT 
         a.*, 
-        p.name as product_name 
+        p.name as product_name,
+        'product' as log_type 
        FROM activity_log a
        LEFT JOIN products p ON a.entity_id = p.id
-       ${whereClause} 
-       ORDER BY a.created_at DESC 
-       LIMIT $${p1} OFFSET $${p2}`,
-      [...queryParams, limit, offset]
-    );
-
-    const countResult = await pool.query(
-      `SELECT COUNT(*) FROM activity_log a ${whereClause}`, 
+       ${whereClauseProduct} 
+       ORDER BY a.created_at DESC`,
       queryParams
     );
 
+    // 2. Fetch Field Schema Logs (New Logic for MongoDB changes)
+    const fieldResult = await pool.query(
+      `SELECT *, 'logic' as log_type 
+       FROM field_schema_logs 
+       ${whereClauseField} 
+       ORDER BY created_at DESC`,
+      queryParams
+    );
+
+    // 3. Merge and Sort both sources by created_at (Newest First)
+    const combinedLogs = [...productResult.rows, ...fieldResult.rows].sort((a, b) => 
+      new Date(b.created_at) - new Date(a.created_at)
+    );
+
+    // 4. Calculate Totals and Paginate the combined list
+    const totalCount = combinedLogs.length;
+    const paginatedItems = combinedLogs.slice(offset, offset + limit);
+
     res.json({
-      items: result.rows,
-      total: parseInt(countResult.rows[0].count, 10),
+      items: paginatedItems,
+      total: totalCount,
       page,
       limit,
     });
@@ -52,8 +68,6 @@ const getActivityLogs = async (req, res, next) => {
     next(err);
   }
 };
-
-module.exports = { getActivityLogs };
 
 const retryActivity = async (req, res, next) => {
   try {

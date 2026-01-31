@@ -100,44 +100,6 @@ const updateProduct = async (id, updates, userId) => {
   }
 };
 
-// const createProduct = async (data, userId) => {
-//   // 🟢 1. FETCH CONFIGURATION FOR DEFAULTS
-//   // We fetch the same rules used in the controller
-//   const settingsRes = await pool.query(
-//     "SELECT key, value FROM system_settings WHERE key IN ('min_product_qty', 'min_product_price')"
-//   );
-  
-//   const config = {};
-//   settingsRes.rows.forEach(row => config[row.key] = row.value);
-
-//   // Define our dynamic defaults
-//   const defaultQty = parseInt(config.min_product_qty) || 1;
-//   const defaultPrice = parseFloat(config.min_product_price) || 1.00;
-
-//   const result = await pool.query(
-//     `INSERT INTO products (name, quantity, unit_price, description, category, updated_by)
-//      VALUES ($1, $2, $3, $4, $5, $6)
-//      RETURNING *`,
-//     [
-//       data.name || "New Product",
-//       data.quantity ?? defaultQty,   // 🟢 Use Configurable Default
-//       data.unit_price ?? defaultPrice, // 🟢 Use Configurable Default
-//       data.description || "",
-//       data.category || "",
-//       userId,
-//     ]
-//   );
-
-//   const newProduct = result.rows[0];
-//   if (typeof activityService !== 'undefined') {
-//     await activityService.logActivity(
-//       'product', newProduct.id, 'creation', null, 'New product added', userId, 'success'
-//     );
-//   }
-//   return newProduct;
-// };
-
-// Add userRole to the parameters
 const createProduct = async (data, userId, userRole) => {
   const settingsRes = await pool.query(
     "SELECT key, value FROM system_settings WHERE key IN ('min_product_qty', 'min_product_price')"
@@ -219,10 +181,30 @@ const bulkDeleteProducts = async (ids, userId) => {
   return result.rows;
 };
 
+/** ---------------- FIELD SCHEMA LOGIC (New) ---------------- */
+const updateFieldLogic = async (fieldId, fieldName, newLogic, userId) => {
+  try {
+    // 1. Fetch current logic from MongoDB (Ensure FieldModel is imported)
+    const currentField = await FieldModel.findById(fieldId);
+    const oldLogic = currentField ? currentField.logic : 'None';
+
+    // 2. Update the logic in MongoDB
+    await FieldModel.findByIdAndUpdate(fieldId, { logic: newLogic });
+
+    // 3. 🟢 CLEANER WAY: Use the dedicated activity service function
+    await activityService.logFieldChange(fieldName, oldLogic, newLogic, userId);
+
+    return { success: true };
+  } catch (err) {
+    console.error("Error updating field logic:", err);
+    throw err;
+  }
+};
 module.exports = {
   getProducts,
   updateProduct,
   createProduct,
   deleteProduct,
   bulkDeleteProducts,
+  updateFieldLogic,
 };

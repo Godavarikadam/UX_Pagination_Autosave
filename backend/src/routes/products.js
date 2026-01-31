@@ -13,5 +13,5 @@ router.patch('/:id', authenticate(), productController.updateProduct);
 router.post('/', authenticate(), productController.createProduct);
 
 router.delete('/:id', authenticate('admin'), productController.deleteProduct);
-
+router.put('/logic/update', authenticate('admin'), productController.updateFieldLogic);
 module.exports = router;

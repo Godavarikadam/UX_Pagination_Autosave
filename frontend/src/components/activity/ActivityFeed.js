@@ -36,6 +36,36 @@ function ActivityFeed() {
     return () => window.removeEventListener("activityUpdated", handleRefresh);
   }, [user]);
 
+const handleRestore = async (log) => {
+  try {
+    if (!window.confirm(`Restore ${log.field_name} to previous version?`)) return;
+
+    // 1. We fetch the current full form state first
+    const currentFormRes = await api.get('/forms/get/product-form');
+    const entities = currentFormRes.data.entities;
+
+    // 2. Map through entities and swap the logic for the specific field
+    const updatedEntities = entities.map(entity => {
+      if (entity.dbKey === log.field_name) {
+        return { ...entity, jsSource: log.old_logic }; // Inject the 'old' version
+      }
+      return entity;
+    });
+
+    // 3. Send the bulk save back to the correct route
+    await api.post('/forms/save', {
+      entities: updatedEntities
+    });
+    
+    alert("Logic restored! A new log entry has been created for this rollback.");
+    fetchActivities(); 
+  } catch (err) {
+    console.error("Restore failed:", err);
+    alert("Restore failed. Check console.");
+  }
+};
+
+
   if (loading && activities.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 space-y-3">
@@ -78,26 +108,74 @@ function ActivityFeed() {
         )}
 
         {activities
-          .filter((a) => {
-            const isLogic = a.field_name === "logic" || a.field_name === "schema_logic" || !a.entity_id;
-            return activeTab === 'logic' ? isLogic : !isLogic;
-          })
+  .filter((a) => {
+    // 🟢 Clean approach: use the log_type from your new API response
+    return activeTab === 'logic' ? a.log_type === 'logic' : a.log_type === 'product';
+  })
           .map((a) => {
-            // Logic Tab Template
-            if (activeTab === 'logic') {
-              return (
-                <div key={a.id} className="min-h-[100px] flex flex-col rounded-xl border border-slate-800 bg-[#1e1e1e] p-4 shadow-xl">
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest px-2 py-0.5 rounded bg-emerald-400/10">System Sync</span>
-                    <span className="text-[9px] text-slate-500 font-mono italic">#{a.id}</span>
-                  </div>
-                  <div className="font-mono text-[10px] leading-relaxed">
-                    <div className="text-rose-400 truncate opacity-80 mb-1">- {String(a.old_value || "// null")}</div>
-                    <div className="text-emerald-400 truncate">+ {String(a.new_value || "// updated")}</div>
-                  </div>
-                </div>
-              );
-            }
+           
+if (activeTab === 'logic') {
+  return (
+    <div key={`logic-${a.id}`} className="min-h-[130px] flex flex-col rounded-md border border-slate-800 bg-[#1e1e1e] p-1 shadow-xl">
+      <div className="flex justify-between items-center mb-1">
+        <div className="flex items-center gap-2">
+          <HiOutlineCode className="text-emerald-400 w-3 h-3" />
+          <span className="text-[9px] font-semibold font-black text-emerald-400 uppercase  px-2 py-0.5 rounded bg-emerald-400/10">
+            {a.field_name || "Logic Update"}
+          </span>
+        </div>
+        <span className="text-[9px] text-slate-500 font-mono">
+           {new Date(a.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+        </span>
+      </div>
+      
+{/* 🟢 Improved Diff Display */}
+<div className="font-mono text-[11px] leading-relaxed bg-black/30 p-2 rounded border border-white/5 overflow-x-auto">
+  {(() => {
+    const oldLines = (a.old_logic || "").split('\n');
+    const newLines = (a.new_logic || "").split('\n');
+    
+    // Find lines that are actually different
+    const diff = newLines.map((line, i) => {
+      if (line !== oldLines[i]) {
+        return { type: 'change', old: oldLines[i], new: line };
+      }
+      return null;
+    }).filter(x => x);
+
+    if (diff.length === 0) return <span className="text-slate-500">// No logic changes detected</span>;
+
+    return diff.map((change, idx) => (
+      <div key={idx} className="mb-2 last:mb-0">
+        {change.old !== undefined && (
+          <div className="text-rose-400/70 flex items-start gap-2 bg-rose-500/5 px-1">
+            <span className="w-3 text-center">-</span>
+            <code className="whitespace-pre">{change.old}</code>
+          </div>
+        )}
+        <div className="text-emerald-400 flex items-start gap-2 bg-emerald-500/5 px-1">
+          <span className="w-3 text-center">+</span>
+          <code className="whitespace-pre">{change.new}</code>
+        </div>
+      </div>
+    ));
+  })()}
+</div>
+
+      <div className="mt-1 pt-1 border-t border-white/5 flex justify-between items-center">
+        <span className="text-[9px] text-slate-500  font-semibold">
+          Updated by User #{a.created_by}
+        </span>
+        <button 
+          className="text-[7px] font-black font-semibold  uppercase text-emerald-400 hover:text-white transition-colors"
+          onClick={() => handleRestore(a)} // We'll build this next if you want
+        >
+          Restore version
+        </button>
+      </div>
+    </div>
+  );
+}
 
             // --- DATA TAB (Your Exact Logic) ---
             const isFailed = a.status === "failed";
