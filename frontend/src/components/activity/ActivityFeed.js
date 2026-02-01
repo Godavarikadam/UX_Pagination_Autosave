@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useContext } from 'react';
 import { api } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
@@ -99,7 +98,7 @@ const handleRestore = async (log) => {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 p-4 overflow-y-auto">
+      <div className="flex flex-col gap-2 px-2 py-3 overflow-y-auto">
         {networkError && (
           <div className="bg-rose-50 border border-rose-100 text-rose-600 px-3 py-2 rounded-lg flex items-center gap-2 animate-pulse mb-2">
             <div className="w-1.5 h-1.5 bg-rose-600 rounded-full" />
@@ -116,11 +115,11 @@ const handleRestore = async (log) => {
            
 if (activeTab === 'logic') {
   return (
-    <div key={`logic-${a.id}`} className="min-h-[130px] flex flex-col rounded-md border border-slate-800 bg-[#1e1e1e] p-1 shadow-xl">
+    <div key={`logic-${a.id}`} className="min-h-[110px] flex flex-col rounded-md border border-slate-300 bg-white p-1 shadow-xl">
       <div className="flex justify-between items-center mb-1">
-        <div className="flex items-center gap-2">
-          <HiOutlineCode className="text-emerald-400 w-3 h-3" />
-          <span className="text-[9px] font-semibold font-black text-emerald-400 uppercase  px-2 py-0.5 rounded bg-emerald-400/10">
+        <div className="flex items-center gap-1">
+          <HiOutlineCode className="text-slate-500 w-3 h-3" />
+          <span className="text-[9px] font-semibold font-black text-slate-500 uppercase  px-2 py-0.5 rounded bg-white">
             {a.field_name || "Logic Update"}
           </span>
         </div>
@@ -130,7 +129,7 @@ if (activeTab === 'logic') {
       </div>
       
 {/* 🟢 Improved Diff Display */}
-<div className="font-mono text-[11px] leading-relaxed bg-black/30 p-2 rounded border border-white/5 overflow-x-auto">
+<div className="font-mono text-[11px] leading-relaxed bg-white p-2 rounded border border-white/5 overflow-x-auto">
   {(() => {
     const oldLines = (a.old_logic || "").split('\n');
     const newLines = (a.new_logic || "").split('\n');
@@ -162,15 +161,15 @@ if (activeTab === 'logic') {
   })()}
 </div>
 
-      <div className="mt-1 pt-1 border-t border-white/5 flex justify-between items-center">
+      <div className=" border-white/5 flex justify-between items-center">
         <span className="text-[9px] text-slate-500  font-semibold">
           Updated by User #{a.created_by}
         </span>
         <button 
-          className="text-[7px] font-black font-semibold  uppercase text-emerald-400 hover:text-white transition-colors"
-          onClick={() => handleRestore(a)} // We'll build this next if you want
+          className="text-[7px] font-black font-semibold bg-gray-200 px-1 py-1 rounded-md uppercase text-emerald-400 hover:text-emerald-500 transition-colors"
+          onClick={() => handleRestore(a)} 
         >
-          Restore version
+          Restore
         </button>
       </div>
     </div>
@@ -255,7 +254,7 @@ if (activeTab === 'logic') {
    
   </div>
 
-  {/* Comparison Row (Hidden if Created, unless you want to see the initial value) */}
+  
   {!isCreated && (
     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
       <div className="flex-1 px-2 py-0.5 rounded border border-slate-100 bg-slate-50 text-[10px] font-medium text-slate-400 line-through truncate text-center">
