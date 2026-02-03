@@ -15,7 +15,7 @@ function ProductDrawer({ product, isOpen, onClose, readOnly = false, onUpdate })
   const [displayStatus, setDisplayStatus] = useState("idle");
   const [isClosing, setIsClosing] = useState(false); 
   
-  // 🟢 DYNAMIC STATES
+
   const [entities, setEntities] = useState([]);
   const [fieldErrors, setFieldErrors] = useState({});
   const [isLoadingSchema, setIsLoadingSchema] = useState(false);
@@ -23,7 +23,7 @@ function ProductDrawer({ product, isOpen, onClose, readOnly = false, onUpdate })
   const lastConfirmedProduct = useRef(product);
   const isNew = product && !product.id;
 
-  // 1. FETCH DYNAMIC SCHEMA (The rules from your Logic Editor)
+ 
   useEffect(() => {
     if (isOpen) {
       const fetchDynamicSchema = async () => {
@@ -48,7 +48,7 @@ function ProductDrawer({ product, isOpen, onClose, readOnly = false, onUpdate })
     }
   }, [isOpen]);
 
-  // Sync local state when product changes
+ 
   useEffect(() => {
     if (product && product.id !== localProduct?.id) {
       setLocalProduct(product);

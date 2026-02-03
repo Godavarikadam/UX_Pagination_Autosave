@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { api } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
-import { HiOutlineDatabase, HiOutlineCode } from "react-icons/hi";
+import {HiOutlineCode } from "react-icons/hi";
+import toast from 'react-hot-toast';
 
 function ActivityFeed() {
   const { user } = useContext(AuthContext);
@@ -10,7 +11,14 @@ function ActivityFeed() {
   const [loading, setLoading] = useState(false);
   const [networkError, setNetworkError] = useState(false);
   const [activeTab, setActiveTab] = useState('data');
+const isAdmin = user?.role === 'admin';
 
+useEffect(() => {
+    if (!isAdmin && activeTab === 'logic') {
+      setActiveTab('data');
+    }
+  }, [isAdmin, activeTab]);
+  
   const fetchActivities = async () => {
     if (!user?.role || !user?.id) return;
     try {
@@ -35,44 +43,93 @@ function ActivityFeed() {
     return () => window.removeEventListener("activityUpdated", handleRefresh);
   }, [user]);
 
-const handleRestore = async (log) => {
-  try {
-    if (!window.confirm(`Restore ${log.field_name} to previous version?`)) return;
 
-    // 1. We fetch the current full form state first
-    const currentFormRes = await api.get('/forms/get/product-form');
-    const entities = currentFormRes.data.entities;
+const handleRestore = (log) => {
+toast(
+  (t) => (
+    <div className="min-w-[200px]">
+      <p className="text-[12px] font-medium text-slate-700 leading-tight">
+        Restore <span className="text-[#3674B5] font-semibold">{log.field_name}</span> to previous version?
+      </p>
 
-    // 2. Map through entities and swap the logic for the specific field
-    const updatedEntities = entities.map(entity => {
-      if (entity.dbKey === log.field_name) {
-        return { ...entity, jsSource: log.old_logic }; // Inject the 'old' version
-      }
-      return entity;
-    });
+      <div className="mt-1 flex justify-end gap-1">
+        <button
+          className="px-3 py-1.5 text-[10px] font-black font-semibold text-slate-400 hover:text-slate-600 transition"
+          onClick={() => toast.dismiss(t.id)}
+        >
+          Cancel
+        </button>
+        
+        <button
+          className="rounded-md bg-[#3674B5] px-2 py-1 text-[10px] font-black  text-white 
+                     shadow-md hover:bg-[#2a5d91] font-semibold transition-all transform active:scale-95"
+          onClick={async () => {
+            toast.dismiss(t.id);
+            const loadingToast = toast.loading("Syncing logic...");
+            try {
+              const currentFormRes = await api.get("/forms/get/product-form");
+              const entities = currentFormRes.data.entities;
 
-    // 3. Send the bulk save back to the correct route
-    await api.post('/forms/save', {
-      entities: updatedEntities
-    });
-    
-    alert("Logic restored! A new log entry has been created for this rollback.");
-    fetchActivities(); 
-  } catch (err) {
-    console.error("Restore failed:", err);
-    alert("Restore failed. Check console.");
-  }
-};
+              const updatedEntities = entities.map((entity) =>
+                entity.dbKey === log.field_name
+                  ? { ...entity, jsSource: log.old_logic }
+                  : entity
+              );
 
+              await api.post("/forms/save", { entities: updatedEntities });
 
-  if (loading && activities.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 space-y-3">
-        <div className="w-6 h-6 border-2 border-[#3674B5] border-t-transparent rounded-full animate-spin" />
-        <p className="text-[13px] font-medium text-slate-400">Syncing ledger...</p>
+              toast.success("Logic restored successfully!", { id: loadingToast });
+              fetchActivities();
+            } catch (err) {
+              console.error("Restore failed:", err);
+              toast.error("Restore failed. Check console.", { id: loadingToast });
+            }
+          }}
+        >
+          Restore
+        </button>
       </div>
-    );
+    </div>
+  ),
+  { 
+    duration: Infinity,
+    style: {
+      borderRadius: '12px',
+      background: '#ffffff',
+      border: '1px solid #e2e8f0',
+     
+    }
   }
+);
+
+};
+{loading && activities.length === 0 ? (
+    // This creates 3 placeholder "ghost" cards that match your UI shape
+    [1, 2, 3].map((i) => (
+      <div key={i} className="min-h-[100px] rounded-md border border-slate-200 bg-slate-50 animate-pulse">
+        <div className="h-8 border-b border-slate-100 bg-slate-100/50" />
+        <div className="p-3 space-y-2">
+          <div className="h-3 w-1/3 bg-slate-200 rounded" />
+          <div className="h-3 w-full bg-slate-200 rounded" />
+        </div>
+      </div>
+    ))
+  ) : (
+    // 🟢 ACTUAL DATA
+    <div className="animate-in fade-in duration-500">
+      {activities
+        .filter((a) => (activeTab === 'logic' ? a.log_type === 'logic' : a.log_type === 'product'))
+        .map((a) => {
+           return (
+             /* ... your existing card JSX ... */
+             <div key={a.id} className="..."> 
+               {/* Card Content */}
+             </div>
+           )
+        })
+      }
+    </div>
+  )}
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -82,11 +139,12 @@ const handleRestore = async (log) => {
           <button 
             onClick={() => setActiveTab('data')}
             className={`flex items-center gap-1 px-4 py-1 font-semibold rounded-md text-[11px] font-black uppercase transition-all ${
-              activeTab === 'data' ? 'bg-white text-black font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'
+              activeTab === 'data' ? 'bg-[#3674B5] text-white font-semibold shadow-sm' : 'text-slate-400 hover:text-slate-600'
             }`}
           >
              Product Logs
           </button>
+          {isAdmin &&(
           <button 
             onClick={() => setActiveTab('logic')}
             className={`flex items-center gap-2 px-8 py-2 font-semibold rounded-md text-[11px] font-black uppercase transition-all ${
@@ -95,6 +153,7 @@ const handleRestore = async (log) => {
           >
             Field Logs
           </button>
+          )}
         </div>
       </div>
 
@@ -142,7 +201,7 @@ if (activeTab === 'logic') {
       return null;
     }).filter(x => x);
 
-    if (diff.length === 0) return <span className="text-slate-500">// No logic changes detected</span>;
+    if (diff.length === 0) return <span className="text-slate-500"> No logic changes detected</span>;
 
     return diff.map((change, idx) => (
       <div key={idx} className="mb-2 last:mb-0">
@@ -176,7 +235,7 @@ if (activeTab === 'logic') {
   );
 }
 
-            // --- DATA TAB (Your Exact Logic) ---
+          
             const isFailed = a.status === "failed";
             const isDeleted = a.field_name === "status" && a.new_value === "inactive";
             const isCreated = (a.old_value === null || a.old_value === "") && 
@@ -200,7 +259,8 @@ if (activeTab === 'logic') {
             return (
               <div
                 key={a.id}
-                className={`group flex flex-col min-h-[100px] rounded-xl border transition-all duration-300 ease-in-out overflow-hidden hover:-translate-y-1 hover:shadow-lg ${
+                className={`group flex flex-col min-h-[100px] rounded-md
+                   border transition-all duration-300 ease-in-out overflow-hidden hover:-translate-y-1 hover:shadow-lg ${
                   isDeleted
                     ? "bg-[#A1E3F9]/5 border-[#A1E3F9]/60 hover:shadow-[#A1E3F9]/20"
                     : isFailed
@@ -221,15 +281,11 @@ if (activeTab === 'logic') {
                     }`}>
                       {isDeleted ? "Deleted Product" : isFailed ? "Failed to update" : isCreated ? "New Record Added" : `Updated ${a.field_name || 'changes'}`}
                     </span>
+
                   </div>
-                  <div className="text-right">
-                    <div className="text-[10px] font-semibold text-slate-600 tabular-nums leading-none">
-                      {new Date(a.created_at).toLocaleDateString([], { day: '2-digit', month: 'short' })}
-                    </div>
-                    <div className="text-[9px] font-medium text-slate-400 uppercase tabular-nums">
-                      {new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  </div>
+                  <span className="text-[9px] text-slate-500 font-mono">
+           {new Date(a.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+        </span>
                 </div>
 <div className="px-3 py-1 flex-grow">
   <div className="flex items-start justify-between gap-4">

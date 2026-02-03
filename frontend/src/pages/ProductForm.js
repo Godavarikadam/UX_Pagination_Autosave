@@ -5,6 +5,8 @@ import Preview from "../components/dynamic/Preview";
 import axios from "axios";
 import { toast } from "react-hot-toast";
 import { FaCode, FaDatabase, FaLayerGroup, FaSearch } from "react-icons/fa";
+import { HiArrowLeft } from "react-icons/hi";
+import { useNavigate } from "react-router-dom";
 import { parseFunction } from "../components/dynamic/utils/functionParser";
 
 const ProductForm = () => {
@@ -13,6 +15,7 @@ const ProductForm = () => {
   const [previewErrors, setPreviewErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const navigate = useNavigate();
 // Check if ANY field has a syntax error OR if ANY preview field has a validation error
 const hasErrors = entities.some(f => f.syntaxError) || Object.values(previewErrors).some(Boolean);
   const token = localStorage.getItem("token");
@@ -183,7 +186,7 @@ const updateLogic = (index, code) => {
     toast.error(err.response?.data?.error || "Save failed.");
   }
 }; 
-  // if (isLoading) return <div className="h-screen flex items-center justify-center bg-[#d3ebe5ff] text-[#3674B5] font-bold">LOADING SCHEMA ENGINE...</div>;
+
 
   const currentField = entities[selectedIndex];
 
@@ -236,23 +239,33 @@ const updateLogic = (index, code) => {
   <div className="bg-white rounded-md shadow-xl border border-gray-200 flex flex-col h-60vh overflow-hidden">
   
     <div className="p-3 border-b border-gray-200 mb-6 flex justify-between items-center bg-white">
-  {/* Left: Metadata & Identity */}
-  <div className="flex items-center gap-4">
-    <div className="flex flex-col">
-      <div className="flex items-center gap-2">
-        <h1 className="text-[11px] font-black text-gray-800 uppercase font-semibold">
-          {currentField?.label}
-        </h1>
-        {/* Dynamic Type Badge */}
-        <span className="px-2 py-0.5 rounded bg-blue-50 text-[#3674B5] text-[9px] font-bold border border-blue-100 uppercase">
-          {currentField?.type || 'text'}
-        </span>
-      </div>
-      <p className="text-[10px] text-gray-500 font-mono flex items-center gap-1 mt-0.5">
-        <span className="opacity-100">db_key:</span> {currentField?.dbKey}
-      </p>
+
+
+<div className="flex  items-center gap-4">
+ 
+  <button 
+    onClick={() => navigate('/products')} // Update path as needed
+    className="p-1 -ml-1 rounded-full  bg-gray-200 hover:bg-gray-300 transition-colors group"
+    title="Back to Products"
+  >
+    <HiArrowLeft className="w-4 h-4 text-slate-400 group-hover:text-[#3674B5]" />
+  </button>
+
+  <div className="flex flex-col">
+    <div className="flex items-center gap-2">
+      <h1 className="text-[11px] font-black text-gray-800 uppercase">
+        {currentField?.label}
+      </h1>
+      {/* Dynamic Type Badge */}
+      <span className="px-2 py-0.5 rounded bg-blue-50 text-[#3674B5] text-[9px] font-bold border border-blue-100 uppercase">
+        {currentField?.type || 'text'}
+      </span>
     </div>
+    <p className="text-[10px] text-gray-500 font-mono flex items-center gap-1 mt-0.5">
+      <span className="opacity-100">db_key:</span> {currentField?.dbKey}
+    </p>
   </div>
+</div>
 
   {/* Right: Controls & Logic Health */}
   <div className="flex items-center gap-4">

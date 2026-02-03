@@ -17,7 +17,7 @@ const Preview = ({ title = "Preview Section", onSave, disabled , count = 0 }) =>
     onClick={() => navigate("/products")} 
     className="text-[#3674B5] text-[11px] font-semibold px-2 py-1 border border-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 bg-gray-50 mr-2 hover:border-gray-400 "
   >
-   Cancel
+   Back
   </button>
 
 

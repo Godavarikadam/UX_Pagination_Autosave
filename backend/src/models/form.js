@@ -7,8 +7,8 @@ const EntitySchema = new mongoose.Schema({
 });
 
 const FormSchema = new mongoose.Schema({
-  // Hardcoded to "product-table" since we only have one table
-  tableName: { type: String, default: "product-table", unique: true }, 
+  
+  tableName: { type: String, default: "products", unique: true }, 
   entities: [EntitySchema]
 });
 
