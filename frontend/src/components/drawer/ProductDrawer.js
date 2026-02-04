@@ -87,28 +87,39 @@ const handleChange = (dbKey, value, fieldObject) => {
   if (readOnly || isClosing) return;
 
   let err = null;
-
-  // 1. Custom JS check
   if (fieldObject.parsed?.validate) {
     err = fieldObject.parsed.validate(value);
   }
 
-  // 2. Dynamic Required Check (Only if fieldObject.required is TRUE)
   if (!err && fieldObject.required) {
-    const isEmpty = value === null || value === undefined || String(value).trim() === "";
+    const isEmpty = Array.isArray(value) 
+      ? value.length === 0 
+      : (value === null || value === undefined || String(value).trim() === "");
     if (isEmpty) err = `${fieldObject.label} is required`;
   }
 
-  // 🟢 Error update (it will be null for optional empty fields)
   setFieldErrors(prev => ({ ...prev, [dbKey]: err }));
 
+  // 1. Update UI state so the user sees their typing
   const updated = { ...localProduct, [dbKey]: value };
   setLocalProduct(updated);
   
-  if (!isNew && !err) {
-    setFormData(updated);
+  // 2. Comparison Logic
+  const oldValue = JSON.stringify(lastConfirmedProduct.current?.[dbKey] ?? "");
+  const newValue = JSON.stringify(value ?? "");
+
+  if (!isNew && !err && oldValue !== newValue) {
+    // 🟢 CHANGE: Send ONLY the changed field to prevent backend loop bloat
+    setFormData({ [dbKey]: value }); 
+
+    // 🟢 UPDATE REF: This prevents the "Typing Log Explosion"
+    lastConfirmedProduct.current = {
+      ...lastConfirmedProduct.current,
+      [dbKey]: value
+    };
   }
 };
+
   const handleImmediateClose = () => {
     setIsClosing(true); 
     if (!isNew) onUpdate?.(lastConfirmedProduct.current, false);
@@ -240,20 +251,32 @@ const handleDone = async () => {
             // Full width for Description and Name
             className={isDescription || isProductName ? "col-span-2" : "col-span-1"}
           >
-            <FormField 
-              index={i}
-              field={{
-                ...f,
-                // Assign textarea ONLY if it is the description
-                type: isDescription ? "textarea" : (f.parsed?.type || "text"),
-                options: f.parsed?.options || [],
-                value: localProduct[key] ?? "",
-                required: f.required
-              }}
-              onValueChange={(idx, val) => handleChange(key, val, f)}
-              error={fieldErrors[key]}
-              readOnly={readOnly}
-            />
+           
+         
+<FormField 
+    index={i}
+    field={{
+        ...f,
+        type: isDescription ? "textarea" : (f.parsed?.type || "text"),
+        options: f.parsed?.options || [],
+        value: localProduct[key] ?? "",
+        required: f.required
+    }}
+    onValueChange={(idx, val) => handleChange(key, val, f)}
+    
+    // 🟢 ADD THIS PROP TO FIX THE ERROR
+    onCheckboxToggle={(idx, val, isChecked) => {
+        const currentArray = Array.isArray(localProduct[key]) ? localProduct[key] : [];
+        const updatedArray = isChecked 
+            ? [...currentArray, val] 
+            : currentArray.filter(v => v !== val);
+        handleChange(key, updatedArray, f);
+    }}
+
+    error={fieldErrors[key]}
+    readOnly={readOnly}
+/>
+
           </div>
         );
       })}

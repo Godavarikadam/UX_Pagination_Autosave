@@ -8,6 +8,8 @@ import toast from "react-hot-toast";
 import { api } from "../../services/api";
 import { HiOutlineSortAscending, HiOutlineSortDescending } from "react-icons/hi";
 
+
+
 function LedgerTable() {
   const { user } = useContext(AuthContext);
   const isAdmin = user?.role === "admin";
@@ -36,8 +38,28 @@ function LedgerTable() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
-
+const [pendingRequests,setPendingRequests]=useState([]);
   // --- HANDLERS ---
+
+useEffect(() => {
+  const fetchPending = async () => {
+    try {
+      // Assuming your backend has this endpoint for the approval list
+     const res = await api.get('/products/approvals/list');
+      console.log("🔍 API Response (Approvals):", res.data);
+      // Filter only 'pending' items
+      setPendingRequests(res.data.filter(r => r.status === 'pending'));
+    } catch (err) {
+      console.error("Failed to fetch pending requests", err);
+    }
+  };
+
+  fetchPending();
+  window.addEventListener("activityUpdated", fetchPending);
+  return () => window.removeEventListener("activityUpdated", fetchPending);
+}, [refreshCounter]);
+
+
   const handleSelectAll = (e) => {
     if (e.target.checked) {
       const pageIds = products.map((p) => p.id);
@@ -341,15 +363,17 @@ useEffect(() => {
     ))
   ) : products.length > 0 ? (
     products.map((p) => (
-      <LedgerRow 
-        key={p.id} 
-        product={p} 
-        isSelected={selectedIds.includes(p.id)} 
-        onSelect={() => setSelectedIds(prev => prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id])}
-        onRowClick={() => handleRowClick(p)}
-        onDeleteSuccess={handleDeleteSuccess}
-        isAdmin={isAdmin} 
-      />
+     <LedgerRow 
+  key={p.id} 
+  product={p} 
+  isSelected={selectedIds.includes(p.id)} 
+  // 🟢 Change 'onSelect' to 'onCheckboxToggle'
+  onCheckboxToggle={() => setSelectedIds(prev => prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id])}
+  onRowClick={() => handleRowClick(p)}
+  onDeleteSuccess={handleDeleteSuccess}
+  isAdmin={isAdmin} 
+ pendingChanges={pendingRequests.filter(r => String(r.entity_id) === String(p.id))}
+/>
     ))
   ) : (
 

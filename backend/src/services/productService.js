@@ -46,14 +46,11 @@ const getProducts = async (page, limit, search = "", sort = "id", sortOrder = "a
   };
 };
 
-
 const updateProduct = async (id, updates, userId) => {
   const currentRes = await pool.query('SELECT * FROM products WHERE id=$1', [id]);
   if (!currentRes.rows[0]) throw new Error('Product not found');
   
   const oldProductState = { ...currentRes.rows[0] };
-  
-  // 🟢 CHANGE: Added 'status' to allowed fields so deleteProduct can pass it
   const ALLOWED_FIELDS = ['name', 'description', 'quantity', 'unit_price', 'category', 'status'];
 
   const safeUpdates = {};
@@ -67,35 +64,35 @@ const updateProduct = async (id, updates, userId) => {
   const keys = Object.keys(changedFields);
   const values = Object.values(changedFields);
   const setClauses = keys.map((key, idx) => `${key}=$${idx + 1}`).join(', ');
-  const updatedByIndex = values.length + 1;
-  const idIndex = values.length + 2;
+  
   values.push(userId ?? null);
   values.push(id);
 
   try {
     const result = await pool.query(
-      `UPDATE products SET ${setClauses}, updated_at = NOW(), updated_by = $${updatedByIndex}
-       WHERE id = $${idIndex} RETURNING *`,
+      `UPDATE products SET ${setClauses}, updated_at = NOW(), updated_by = $${values.length - 1}
+       WHERE id = $${values.length} RETURNING *`,
       values
     );
 
     if (userId) {
       for (const field of keys) {
-        await activityService.logActivity(
-          'product', id, field, oldProductState[field], changedFields[field], userId, 'success'
+        // 🟢 THE FIX: Use a smarter logging function that updates existing pending logs
+        // instead of just creating new ones.
+        await activityService.resolveOrLogActivity(
+          'product', 
+          id, 
+          field, 
+          oldProductState[field], 
+          changedFields[field], 
+          userId, 
+          'success'
         );
       }
     }
     return result.rows[0];
-
   } catch (err) {
-    if (userId) {
-      for (const field of keys) {
-        await activityService.logActivity(
-          'product', id, field, oldProductState[field], changedFields[field], userId, 'failed' 
-        );
-      }
-    }
+    // Handle error logging...
     throw err; 
   }
 };
@@ -181,18 +178,36 @@ const bulkDeleteProducts = async (ids, userId) => {
   return result.rows;
 };
 
-/** ---------------- FIELD SCHEMA LOGIC (New) ---------------- */
 const updateFieldLogic = async (fieldId, fieldName, newLogic, userId) => {
   try {
-    // 1. Fetch current logic from MongoDB (Ensure FieldModel is imported)
     const currentField = await FieldModel.findById(fieldId);
     const oldLogic = currentField ? currentField.logic : 'None';
 
-    // 2. Update the logic in MongoDB
+    // 🟢 FIX: Normalize both strings to remove hidden formatting differences
+    // This replaces all Windows-style line endings (\r\n) with standard (\n)
+    const normalizedOld = oldLogic.replace(/\r\n/g, "\n").trim();
+    const normalizedNew = newLogic.replace(/\r\n/g, "\n").trim();
+
+    if (normalizedOld === normalizedNew) return { success: true };
+
     await FieldModel.findByIdAndUpdate(fieldId, { logic: newLogic });
 
-    // 3. 🟢 CLEANER WAY: Use the dedicated activity service function
-    await activityService.logFieldChange(fieldName, oldLogic, newLogic, userId);
+    // Deduplicate as discussed earlier
+    await pool.query(
+      `DELETE FROM activity_log WHERE entity_type = 'field' AND entity_id = $1`,
+      [fieldId]
+    );
+
+    // 🟢 PASS THE CLEANED STRINGS: This ensures the diff engine sees only logic changes
+    await activityService.logActivity(
+      'field', 
+      fieldId, 
+      fieldName, 
+      normalizedOld, 
+      normalizedNew, 
+      userId, 
+      'success'
+    );
 
     return { success: true };
   } catch (err) {
@@ -200,6 +215,13 @@ const updateFieldLogic = async (fieldId, fieldName, newLogic, userId) => {
     throw err;
   }
 };
+
+const getProductById = async (id) => {
+  const result = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
+  return result.rows[0]; 
+};
+
+
 module.exports = {
   getProducts,
   updateProduct,
@@ -207,4 +229,5 @@ module.exports = {
   deleteProduct,
   bulkDeleteProducts,
   updateFieldLogic,
+  getProductById,
 };

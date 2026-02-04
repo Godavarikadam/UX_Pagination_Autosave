@@ -26,28 +26,22 @@ export function useAutoSave(productId, initialData) {
     }
 
     if (!productId) return;
+// Inside useAutoSave.js
+const save = async () => {
+  if (Date.now() - lastTypedAt.current < 600) return;
 
-    const save = async () => {
-      // Safety guard to ensure we don't save while user is actively hitting keys
-      if (Date.now() - lastTypedAt.current < 500) return;
-
-      setSaveStatus("saving");
-      setErrorMessage("");
-
-      try {
-        // Send the entire debounced object
-        const res = await api.patch(`/products/${productId}`, debouncedValue);
-        
-        setSaveStatus("saved");
-
-        // 🟢 KEY FIX: Trigger refresh only AFTER successful consolidated save
-        window.dispatchEvent(new Event("activityUpdated"));
-
-      } catch (err) {
-        setSaveStatus("error");
-        setErrorMessage(err.response?.data?.message || "Auto-save failed");
-      }
-    };
+  setSaveStatus("saving");
+  
+  try {
+    
+    const res = await api.patch(`/products/${productId}`, debouncedValue);
+    
+    setSaveStatus("saved");
+    window.dispatchEvent(new Event("activityUpdated"));
+  } catch (err) {
+    setSaveStatus("error");
+  }
+};
 
     save();
   }, [debouncedValue, productId]);
