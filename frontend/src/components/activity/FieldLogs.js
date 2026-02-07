@@ -48,7 +48,7 @@ const FieldLogs = ({ a, handleRestore }) => (
         Updated by User #{a.created_by}
       </span>
       <button 
-        className="text-[7px] font-black font-semibold bg-gray-200 px-1 py-1 rounded-md uppercase text-emerald-400 hover:text-emerald-500 transition-colors"
+        className="text-[7px]  font-semibold bg-gray-100 px-1 hover-bg-text-emerald-500 py-1 rounded uppercase text-black hover:bg-white transition-colors"
         onClick={() => handleRestore(a)} 
       >
         Restore

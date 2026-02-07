@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useContext, useRef } from "react";
 import { useAutoSave } from "../../hooks/useAutoSave";
 import { AuthContext } from "../../context/AuthContext";
@@ -210,9 +209,10 @@ const handleDone = async () => {
         {/* HEADER */}
         <div className="flex items-center justify-between border-b border-gray-200 bg-white px-5 py-3">
           <div>
-            <h2 className="text-[12px] font-semibold text-[#3674B5] uppercase">
-              {isNew ? "Create Product" : "Edit Product"}
-            </h2>
+           <h2 className="text-[12px] font-semibold text-[#3674B5] uppercase">
+  {isNew ? "Create Product" : 
+   localProduct.current_request_status === 'rejected' ? "Resubmit Product" : "Edit Product"}
+</h2>
             <p className="text-[9px] text-[#3674B5] font-bold">
               {isNew ? "NEW ENTRY" : `ID: #${localProduct.id}`}
             </p>
@@ -230,6 +230,34 @@ const handleDone = async () => {
         </div>
 {/* BODY: Dynamic Form Area */}
 <div className="flex-1 overflow-y-auto px-4 py-2 space-y-3 bg-white custom-scrollbar">
+
+ {/* STATUS BANNER: Role-Aware Context */}
+{!isNew && (localProduct.current_request_status === 'pending' || localProduct.current_request_status === 'rejected') && (
+  <div className={`p-3 rounded-md border flex items-start gap-3 ${
+    localProduct.current_request_status === 'pending' ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200"
+  }`}>
+    <div className={`mt-1 w-2 h-2 rounded-full animate-pulse ${
+      localProduct.current_request_status === 'pending' ? "bg-amber-500" : "bg-red-500"
+    }`} />
+    <div className="flex-1">
+      <p className={`text-[11px] font-bold uppercase ${
+        localProduct.current_request_status === 'pending' ? "text-amber-800" : "text-red-800"
+      }`}>
+        {/* Branch text based on ROLE */}
+        {user.role === 'admin' 
+          ? (localProduct.current_request_status === 'pending' ? "Action Required: Review this change" : "Request rejected")
+          : (localProduct.current_request_status === 'pending' ? "Request is under review" : "Correction Needed")}
+      </p>
+      
+      {localProduct.current_request_status === 'rejected' && (
+        <p className="text-[10px] text-red-600 font-medium italic mt-0.5">
+          Reason: {localProduct.rejection_reason}
+        </p>
+      )}
+    </div>
+  </div>
+)}
+
   {isLoadingSchema ? (
     <div className="flex flex-col items-center justify-center py-16">
       <div className="w-9 h-9 border-[3px] border-slate-100 border-t-[#3674B5] rounded-full animate-spin mb-4" />
@@ -304,13 +332,24 @@ const handleDone = async () => {
   )}
 </div>
         
-        {/* FOOTER */}
-        <div className="bg-gray-50 px-5 py-3 border-t border-gray-200 flex justify-end gap-3">
-          <button onClick={handleImmediateClose} className="px-3 py-2 bg-gray-200 text-black text-[11px] font-semibold rounded-md border border-gray-400 ">Cancel</button>
-          <button onClick={handleDone} className="px-3 py-2 bg-[#3674B5] text-white rounded-md text-[11px] font-semibold shadow-sm active:scale-95 transition-all">
-            {isNew ? "Add Product" : "Done"}
-          </button>
-        </div>
+{/* FOOTER: Role-Aware Button */}
+<div className="bg-gray-50 px-5 py-3 border-t border-gray-200 flex justify-end gap-3">
+  <button onClick={handleImmediateClose} className="...">Cancel</button>
+  
+  <button 
+    onClick={handleDone} 
+    className={`px-3 py-2 text-white rounded-md text-[11px] font-semibold shadow-sm active:scale-95 transition-all ${
+      user.role === 'admin' ? 'bg-[#3674B5]' : (localProduct.current_request_status === 'rejected' ? 'bg-orange-600' : 'bg-[#3674B5]')
+    }`}
+  >
+    {isNew ? "Add Product" : (
+      user.role === 'admin' 
+        ? "Save Changes (Live)" // Admins always save live
+        : (localProduct.current_request_status === 'rejected' ? "Fix & Resubmit" : "Submit Update")
+    )}
+  </button>
+</div>
+
       </div>
     </div>
   );

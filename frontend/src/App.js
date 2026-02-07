@@ -49,10 +49,9 @@ function App() {
             </Route>
 
             {/* 🟢 UPDATED: Use AdminRoute and the correct component name */}
-           <Route 
-              path="approvals" 
-              element={<Approval />} 
-            />
+           <Route path="approvals" element={<Approval />}>
+               <Route path=":productId/:requestId" element={<Approval />} />
+            </Route>
 
             <Route path="products/form" element={<ProductForm />} />
           </Route>

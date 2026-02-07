@@ -63,7 +63,7 @@ function ActivityFeed() {
         <div className="mt-1 flex justify-end gap-1">
           <button className="px-3 py-1.5 text-[10px] text-slate-400" onClick={() => toast.dismiss(t.id)}>Cancel</button>
           <button
-            className="rounded-md bg-[#3674B5] px-2 py-1 text-[10px] text-white"
+            className="rounded-md bg-white px-2 py-1 text-[10px] text-white"
             onClick={async () => {
               toast.dismiss(t.id);
               const loadingToast = toast.loading("Syncing...");
@@ -90,7 +90,7 @@ function ActivityFeed() {
         <div className="flex bg-slate-100 p-1 rounded-md gap-1">
           <button 
             onClick={() => setActiveTab('data')}
-            className={`px-4 py-1 rounded-md text-[11px] font-black uppercase transition-all ${
+            className={`px-4 py-1 rounded-md text-[11px] font-black uppercase font-semibold transition-all ${
               activeTab === 'data' ? 'bg-[#3674B5] text-white shadow-sm' : 'text-slate-400'
             }`}
           >
@@ -99,7 +99,7 @@ function ActivityFeed() {
           {isAdmin && (
             <button 
               onClick={() => setActiveTab('logic')}
-              className={`px-4 py-1 rounded-md text-[11px] font-black uppercase transition-all ${
+              className={`px-4 py-1 rounded-md font-semibold text-[11px] font-black uppercase transition-all ${
                 activeTab === 'logic' ? 'bg-[#3674B5] text-white shadow-sm' : 'text-slate-400'
               }`}
             >
@@ -109,31 +109,58 @@ function ActivityFeed() {
         </div>
       </div>
 
-      {/* Feed Content */}
-      <div className="flex flex-col gap-2 px-2 py-3 overflow-y-auto">
-        {networkError && (
-          <div className="bg-rose-50 border border-rose-100 text-rose-600 px-3 py-2 rounded-lg flex items-center gap-2 mb-2">
-            <span className="text-[11px] font-black uppercase">Sync Disconnected</span>
-          </div>
-        )}
+    {/* Feed Content */}
+<div className="flex flex-col gap-2 px-2 py-3 overflow-y-auto">
+  {networkError && (
+    <div className="bg-rose-50 border border-rose-100 text-rose-600 px-3 py-2 rounded-lg flex items-center gap-2 mb-2">
+      <span className="text-[11px] font-black uppercase tracking-wider">Sync Disconnected</span>
+    </div>
+  )}
 
-        {loading && activities.length === 0 ? (
-          [1, 2, 3].map((i) => (
-            <div key={i} className="min-h-[100px] rounded-md border border-slate-200 bg-slate-50 animate-pulse mb-2" />
-          ))
-        ) : (
-          <div className="animate-in fade-in duration-500">
-            {activities
-              .filter((a) => activeTab === 'logic' ? a.log_type === 'logic' : a.log_type === 'product')
-              .map((a) => (
-                activeTab === 'logic' 
-                  ? <FieldLogs key={a.id} a={a} handleRestore={handleRestore} />
-                  : <ProductLogs key={a.id} a={a} isAdmin={isAdmin} navigate={navigate} />
-              ))
-            }
-          </div>
-        )}
-      </div>
+  {loading && activities.length === 0 ? (
+    [1, 2, 3].map((i) => (
+      <div key={i} className="min-h-[100px] rounded-md border border-slate-200 bg-slate-50 animate-pulse mb-2" />
+    ))
+  ) : (
+    <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+      {(() => {
+        const filtered = activities.filter((a) => 
+          activeTab === 'logic' ? a.log_type === 'logic' : a.log_type === 'product'
+        );
+
+        if (filtered.length === 0) {
+          return (
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+              <div className="bg-slate-50 p-4 rounded-full mb-3">
+                {activeTab === 'logic' ? (
+                  <HiOutlineCode className="text-slate-300" size={32} />
+                ) : (
+                  <HiOutlineEye className="text-slate-300" size={32} />
+                )}
+              </div>
+              <h3 className="text-[11px] font-black uppercase text-slate-500 tracking-widest">
+                No {activeTab} Activity
+              </h3>
+              <p className="text-[12px] text-gray-500 mt-1 max-w-[180px] leading-relaxed">
+                {activeTab === 'logic' 
+                  ? "Changes to field logic and validation will be tracked here." 
+                  : "Start updating products to see your activity timeline."}
+              </p>
+            </div>
+          );
+        }
+
+        return filtered.map((a) => (
+          activeTab === 'logic' 
+            ? <FieldLogs key={a.id} a={a} handleRestore={handleRestore} />
+            : <ProductLogs key={a.id} a={a} isAdmin={isAdmin} navigate={navigate} />
+        ));
+      })()}
+    </div>
+  )}
+</div>
+
+
     </div>
   );
 }

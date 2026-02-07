@@ -13,7 +13,7 @@ function PaginationBar({ page, totalPages, limit, setLimit, setPage }) {
     <div className="flex items-center justify-between">
       
       <div className="flex items-center gap-2">
-  <span className="text-[10px] font-semibold font-black text-gray-500 uppercase">
+  <span className="text-[11px] font-semibold font-black text-gray-500 uppercase">
     Entries per page :
   </span>
   <select

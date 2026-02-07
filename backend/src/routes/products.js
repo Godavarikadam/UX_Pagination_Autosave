@@ -1,4 +1,3 @@
-
 const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/productController');
@@ -16,9 +15,10 @@ router.delete('/:id', authenticate('admin'), productController.deleteProduct);
 router.put('/logic/update', authenticate('admin'), productController.updateFieldLogic);
 
 // --- Approval System Routes (Admin Only) ---
-
+router.get('/approvals/:productId/:requestId', authenticate(), productController.getApprovalDetail);
 // 1. Get the list of all requests (Pending/Approved/Rejected)
 router.get('/approvals/list', authenticate(), productController.getApprovalList);
+
 
 // 2. The Decision (Approve/Reject)
 router.post('/approvals/decision', authenticate('admin'), productController.handleDecision);

@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { deleteProduct } from "../../services/productApi";
 import { FiEdit3, FiTrash2, FiX } from "react-icons/fi";
@@ -7,36 +6,31 @@ import toast from "react-hot-toast";
 function LedgerRow({ product, isSelected, onCheckboxToggle, onRowClick, isAdmin, onDeleteSuccess, pendingChanges }) {
   const [deleting, setDeleting] = useState(false);
 
-const renderCell = (fieldName, currentValue, prefix = "") => {
-  const pending = pendingChanges?.find(r => r.field_name === fieldName);
+  const renderCell = (fieldName, currentValue, prefix = "") => {
+    const pending = pendingChanges?.find(r => r.field_name === fieldName);
 
-  if (pending) {
-    return (
-      // 🟢 'flex-col' is required to stack the Ghost and the New value
-      // 🟢 'items-center' or 'items-start' ensures they align correctly
-      <div className="flex flex-col items-center justify-center min-h-[40px] leading-tight">
-        {/* Ghost Value */}
-        <span className="text-[10px] text-slate-400 line-through opacity-60">
-          {prefix}{currentValue}
-        </span>
-        
-        {/* New Proposed Value */}
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <span className="text-[12px] font-bold text-amber-600 italic">
-            {prefix}{pending.new_value}
+    if (pending) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[40px] leading-tight">
+          {/* Ghost Value */}
+          <span className="text-[11px] text-slate-500 line-through opacity-60">
+            {prefix}{currentValue}
           </span>
-          {/* Pulsing Amber Dot */}
-          <span className="flex h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+          
+          {/* New Proposed Value */}
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[12px] font-bold text-amber-600 italic">
+              {prefix}{pending.new_value}
+            </span>
+          </div>
         </div>
-      </div>
-    );
-  }
-  return <span className="text-[12px] font-medium">{prefix}{currentValue}</span>;
-};
+      );
+    }
+    return <span className="text-[12px] font-medium">{prefix}{currentValue}</span>;
+  };
 
   const handleDelete = (e) => {
     if (deleting) return;
-    // ... (Your existing toast logic)
     toast((t) => (
       <div className="flex items-center gap-3 min-w-[280px]">
         <div className="flex-shrink-0 w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center">
@@ -74,8 +68,16 @@ const renderCell = (fieldName, currentValue, prefix = "") => {
     }
   };
 
+  // Determine row background based on status
+  const getRowBg = () => {
+    if (product.current_request_status === 'pending') return 'bg-amber-50/20';
+    if (product.current_request_status === 'rejected') return 'bg-red-50/20';
+    if (pendingChanges?.length > 0) return 'bg-amber-50/10';
+    return '';
+  };
+
   return (
-    <tr className={`hover:bg-blue-50/30 transition-colors group ${pendingChanges?.length > 0 ? 'bg-amber-50/10' : ''}`}>
+    <tr className={`hover:bg-blue-50/30 transition-colors group ${getRowBg()}`}>
       {isAdmin && (
         <td className="w-[50px] px-4 py-3 text-center border border-slate-200">
           <input 
@@ -88,13 +90,33 @@ const renderCell = (fieldName, currentValue, prefix = "") => {
         </td>
       )}
 
-      <td className="w-20 px-6 py-3 text-[12px] font-semibold text-[#3674B5] border border-slate-200">
-        #{product.id}
+      {/* 🟢 ID Cell with Status Badge */}
+      <td className="w-20 px-6 py-3 border border-slate-200">
+        <div className="flex flex-col gap-1">
+          <span className="text-[12px] font-semibold text-[#3674B5]">#{product.id}</span>
+          {product.current_request_status === 'pending' && (
+            <span className="w-fit px-1.5 py-0.5 bg-amber-100 text-amber-600 text-[8px] font-bold rounded uppercase tracking-tighter">
+              Pending
+            </span>
+          )}
+          {product.current_request_status === 'rejected' && (
+            <span className="w-fit px-1.5 py-0.5 bg-red-100 text-red-600 text-[8px] font-bold rounded uppercase tracking-tighter">
+              Rejected
+            </span>
+          )}
+        </div>
       </td>
       
-      {/* 🟢 Name Cell with Ghost Logic */}
+      {/* 🟢 Name Cell with Rejection Reason */}
       <td className="px-6 py-3 w-60 font-medium text-gray-600 border border-slate-200">
-        {renderCell('name', product.name)}
+        <div className="flex flex-col">
+          {renderCell('name', product.name)}
+          {/* {product.current_request_status === 'rejected' && product.rejection_reason && (
+            <div className="mt-1 px-2 py-1 bg-red-50 border border-red-100 rounded text-[9px] text-red-500 italic leading-tight">
+              Reason: {product.rejection_reason}
+            </div>
+          )} */}
+        </div>
       </td>
   
       {/* 🟢 Quantity Cell with Ghost Logic */}

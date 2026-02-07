@@ -1,5 +1,6 @@
 import React from 'react';
 import { HiOutlineEye } from "react-icons/hi";
+import {toast} from 'react-hot-toast';
 
 const ProductLogs = ({ a, isAdmin, navigate }) => {
   const isPending = a.status === "pending";
@@ -66,7 +67,7 @@ const ProductLogs = ({ a, isAdmin, navigate }) => {
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-white/50">
         <div className="flex items-center gap-2">
           <div className={`w-1.5 h-1.5 rounded-full ${actionStatus === "Pending" ? "animate-pulse" : ""} ${statusColors[actionStatus].split(' ')[1]}`} />
-          <span className={`text-[9px] font-black uppercase tracking-wider ${statusColors[actionStatus].split(' ')[0]}`}>
+          <span className={`text-[10px] font-black font-semibold uppercase tracking-wider ${statusColors[actionStatus].split(' ')[0]}`}>
             {headerText}
           </span>
         </div>
@@ -81,21 +82,30 @@ const ProductLogs = ({ a, isAdmin, navigate }) => {
             Product <span className="text-[#3674B5]">#{a.entity_id}</span>
             <span className="text-slate-400 font-normal ml-1 italic">by User {a.created_by}</span>
           </h4>
-          {isAdmin && isPending && (
-            <button onClick={() => navigate(`/approvals?requestId=${a.id}`)} className="flex items-center gap-1 px-2 py-0.5 bg-amber-500 text-white rounded text-[8px] font-bold uppercase transition-all shadow-sm active:scale-95">
-              <HiOutlineEye size={10} /> Review
-            </button>
-          )}
+       
+{isAdmin && isPending && (
+  <button 
+    onClick={() =>{
+      if (!a.request_id) {
+      return toast.error("Log entry is missing its reference ID");
+    
+    }
+       navigate(`/approvals/${a.entity_id}/${a.request_id}`)} }
+    className="flex items-center gap-1 px-2 py-0.5 bg-amber-500 text-white rounded text-[8px] font-bold uppercase transition-all shadow-sm active:scale-95 hover:bg-amber-600"
+  >
+    <HiOutlineEye size={10} /> Review
+  </button>
+)}
         </div>
         
         <div className="mt-2">
           <div className="flex justify-between items-center mb-1">
-             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">{displayName} Change:</span>
+             <span className="text-[10px] font-semibold text-gray-500 ">{displayName} Change:</span>
           </div>
           <div className="flex items-center gap-2 bg-white/50 p-1 rounded border border-slate-50">
-            <div className="flex-1 text-[10px] text-slate-400 line-through truncate text-center">{String(a.old_value || "null")}</div>
+            <div className="flex-1 text-[10px] font-semibold text-slate-400 line-through truncate text-center">{String(a.old_value || "null")}</div>
             <span className="text-slate-300 text-[10px]">→</span>
-            <div className={`flex-1 text-[10px] rounded font-bold truncate text-center ${
+            <div className={`flex-1 text-[10px] rounded font-semibold truncate text-center ${
                 actionStatus === "Rejected" ? "text-rose-700" : 
                 actionStatus === "Approved" ? "text-emerald-700" : "text-[#3674B5]"
             }`}>

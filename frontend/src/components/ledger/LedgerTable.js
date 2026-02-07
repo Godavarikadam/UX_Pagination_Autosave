@@ -8,8 +8,6 @@ import toast from "react-hot-toast";
 import { api } from "../../services/api";
 import { HiOutlineSortAscending, HiOutlineSortDescending } from "react-icons/hi";
 
-
-
 function LedgerTable() {
   const { user } = useContext(AuthContext);
   const isAdmin = user?.role === "admin";
@@ -44,11 +42,11 @@ const [pendingRequests,setPendingRequests]=useState([]);
 useEffect(() => {
   const fetchPending = async () => {
     try {
-      // Assuming your backend has this endpoint for the approval list
      const res = await api.get('/products/approvals/list');
       console.log("🔍 API Response (Approvals):", res.data);
-      // Filter only 'pending' items
-      setPendingRequests(res.data.filter(r => r.status === 'pending'));
+      const items = res.data.items || (Array.isArray(res.data) ? res.data : []);
+
+      setPendingRequests(items.filter(r => r.status === 'pending'));
     } catch (err) {
       console.error("Failed to fetch pending requests", err);
     }
@@ -176,8 +174,7 @@ useEffect(() => {
   }, []);
 
 useEffect(() => {
-    // GUARD: If no limit in URL, we MUST wait for config to load from DB
-    // This prevents fetching with a default "15" while the DB is still sending "5"
+   
     if (!urlLimit && !config.isLoaded) return;
 
     const fetchProducts = async () => {
@@ -237,14 +234,14 @@ useEffect(() => {
 
   return (
     <div className="flex flex-col h-full bg-white relative font-sans">
-      <div className="px-4 py-3 border-b border-gray-100 bg-white z-20">
+      <div className="px-4 py-2.5  bg-white z-20">
         <div className="flex flex-wrap items-center gap-4 px-4">
           <div className="text-[12px] font-semibold text-gray-500">
             Total Items: <span className="text-[#3674B5]">{total}</span>
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
-            <div className="flex items-center h-7 rounded-lg border border-slate-200 bg-slate-50 overflow-hidden group">
+            <div className="flex items-center h-7 rounded border border-slate-300 bg-slate-50 overflow-hidden group">
               <div className="px-2.5 flex items-center h-full bg-slate-100 border-r border-slate-200">
                 <span className="text-[9px] font-black text-slate-600 uppercase">Sort by</span>
               </div>
@@ -282,17 +279,6 @@ useEffect(() => {
               </button>
             )}
 
-{isAdmin && (
-    <button 
-      onClick={() => navigate("/products/form")} 
-      className="group flex items-center gap-2 px-3 py-2 rounded-lg border font-semibold  bg-[#3674B5] text-white text-[11px] font-bold shadow-sm border-[#3674B5]  transition-all"
-      title="Configure Field Validation & DSL"
-    >
-    
-      Edit Field Logic
-    </button>
-  )}
-
 
   <button 
     onClick={handleAddProduct} 
@@ -306,8 +292,8 @@ useEffect(() => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden flex flex-col relative">
-        <div className="flex-1 overflow-y-auto px-4 custom-scrollbar">
+      <div className="flex-1 overflow-hidden px-4 flex flex-col relative">
+        <div className="flex-1 overflow-y-auto   custom-scrollbar">
           <table className="w-full text-left border-collapse table-fixed">
             <thead className="sticky top-0 z-20">
               <tr className="bg-gray-100">
@@ -388,7 +374,7 @@ useEffect(() => {
         </div>
       </div>
 
-      <div className="px-6 py-2 border-t border-slate-200 bg-slate-50/50">
+      <div className="px-3 ml-2 py-3 border-t border-slate-200 bg-white ">
         <PaginationBar
           page={page}
           limit={limit}

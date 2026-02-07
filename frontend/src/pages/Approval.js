@@ -1,233 +1,342 @@
 import React, { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../services/api";
 import { toast } from "react-hot-toast";
-import { HiCheck, HiX, HiOutlineInformationCircle } from "react-icons/hi";
+import { HiCheck, HiX, HiSearch, HiFilter, HiOutlineCube } from "react-icons/hi";
+import PaginationBar from "../components/ledger/PaginationBar";
 
 function Approval() {
-  const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState('pending');
+  const { productId, requestId } = useParams();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const page = Number(searchParams.get("page")) || 1;
+  const limit = Number(searchParams.get("limit")) || 10;
+  const searchTerm = searchParams.get("search") || "";
+  const filterStatus = searchParams.get("status") || "all";
+
   const [requests, setRequests] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  const [filter, setFilter] = useState("all"); // 'all', 'pending', 'approved', 'rejected'
-
-  useEffect(() => {
-    const fetchAllRequests = async () => {
-      try {
-        const res = await api.get('/products/approvals/list');
-        setRequests(res.data);
-      } catch (err) {
-        console.error("Failed to fetch history");
+  // --- HELPERS ---
+  const updateUrl = (newParams) => {
+    const params = new URLSearchParams(searchParams);
+    Object.entries(newParams).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        params.set(key, value);
+      } else {
+        params.delete(key);
       }
-    };
-    fetchAllRequests();
-  }, []);
+    });
+    setSearchParams(params, { replace: true });
+  };
 
-  const filteredData = requests.filter(req => 
-    filter === "all" ? true : req.status === filter
-  );
-  
-  const targetRequestId = searchParams.get('requestId');
-
-
-  useEffect(() => {
-    fetchRequests();
-    if (targetRequestId) {
-      setActiveTab('pending');
-    }
-  }, [targetRequestId]);
-
+  // --- DATA FETCHING ---
   const fetchRequests = async () => {
+    // 🟢 ANTI-FLICKER: We don't clear setRequests([]) here. 
+    // Old data stays visible until new data arrives.
     setLoading(true);
     try {
-      const res = await api.get("/products/approvals/list");
-      setRequests(res.data || []);
+      const endpoint = (productId && requestId) 
+        ? `/products/approvals/${productId}/${requestId}` 
+        : `/products/approvals/list`;
+      
+      const res = await api.get(endpoint, {
+        params: {
+          page,
+          limit,
+          search: searchTerm,
+          status: filterStatus
+        }
+      });
+
+      const items = res.data.items || (Array.isArray(res.data) ? res.data : [res.data]);
+      const count = res.data.total || items.length;
+
+      setRequests(items);
+      setTotal(count);
     } catch (err) {
-      console.error("Failed to fetch approvals", err);
-      toast.error("Could not load approval requests");
+      toast.error("Could not load requests");
+      setRequests([]);
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchRequests();
+  }, [productId, requestId, page, limit, searchTerm, filterStatus]);
+
   const handleAction = async (requestId, decision) => {
     let reason = "";
     if (decision === 'rejected') {
       reason = window.prompt("Enter rejection reason:");
-      if (reason === null) return;
-      if (reason.trim() === "") return toast.error("Reason is required for rejection");
+      if (!reason?.trim()) return toast.error("Reason required for rejection");
     }
 
     try {
       await api.post("/products/approvals/decision", { requestId, decision, reason });
       toast.success(`Request ${decision} successfully`);
-      fetchRequests(); 
+      fetchRequests();
+      window.dispatchEvent(new Event("activityUpdated"));
     } catch (err) {
-      console.error("Decision failed", err);
       toast.error("Action failed");
     }
   };
 
-  const filteredRequests = requests.filter(req => 
-    req.status.toLowerCase() === activeTab.toLowerCase()
-  );
+  
+  const displayedRequests = requests.filter(req => {
+    const matchesStatus = filterStatus === "all" || req.status.toLowerCase() === filterStatus.toLowerCase();
+    const matchesSearch = 
+      req.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      req.entity_id?.toString().includes(searchTerm);
+    return matchesStatus && matchesSearch;
+  });
 
   return (
-    <div className="p-6 bg-gray-50 h-screen flex flex-col">
-      <div className="flex justify-between items-center mb-6 flex-shrink-0">
-        <h2 className="text-2xl font-bold text-[#3674B5]">Approval Management</h2>
-        <div className="text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-          Total Requests: {requests.length}
+    <div className="h-full flex flex-col bg-white shadow-xl shadow-slate-100/40 rounded overflow-hidden">
+      
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between p-4 pb-0 gap-4 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="text-[12px] font-semibold text-gray-500">
+            Total Items: <span className="text-[#3674B5]">{total}</span>
+          </div>
+
+        </div>
+
+        <div className="flex items-center justify-end gap-3 md:ml-auto">
+          <div className="relative w-64">
+            <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input 
+              type="text"
+              placeholder="Search ID..."
+              value={searchTerm}
+              onChange={(e) => updateUrl({ search: e.target.value, page: 1 })}
+              className="w-full pl-9 pr-3 py-1 bg-white border border-slate-300 rounded-lg text-sm focus:ring-0.5 focus:ring-slate-600 outline-none shadow-sm text-black"
+            />
+          </div>
+
+          <div className="relative">
+            <HiFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <select 
+              value={filterStatus}
+              onChange={(e) => updateUrl({ status: e.target.value, page: 1 })}
+              className="pl-8 pr-7 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 uppercase  outline-none focus:ring-0.5 focus:ring-gray-200 appearance-none cursor-pointer shadow-sm"
+            >
+              <option value="all">All Requests</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
         </div>
       </div>
-      
-      {/* Tabs Navigation */}
-      <div className="flex space-x-4 mb-6 border-b border-slate-200 flex-shrink-0">
-        {['pending', 'approved', 'rejected'].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`pb-2 px-6 capitalize font-bold text-sm transition-all relative ${
-              activeTab === tab ? 'text-[#3674B5]' : 'text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            {tab}
-            {tab === 'pending' && requests.filter(r => r.status === 'pending').length > 0 && (
-              <span className="ml-2 bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                {requests.filter(r => r.status === 'pending').length}
-              </span>
-            )}
-            {activeTab === tab && (
-              <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#3674B5]" />
-            )}
-          </button>
-        ))}
-      </div>
 
-      {/* SCROLLABLE TABLE CONTAINER */}
-      <div className="flex-1 min-h-0 bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden flex flex-col">
-        <div className="overflow-y-auto custom-scrollbar">
-          <table className="w-full text-left text-sm border-separate border-spacing-0">
-            <thead className="sticky top-0 z-10 bg-slate-50 shadow-sm">
-              <tr className="text-slate-600 uppercase text-[11px] font-black tracking-wider">
-                <th className="p-4 border-b border-slate-200">Entity/Field</th>
-                <th className="p-4 border-b border-slate-200">Change Details</th>
-                <th className="p-4 border-b border-slate-200">Requester</th>
-                {activeTab === 'rejected' && <th className="p-4 border-b border-slate-200">Rejection Reason</th>}
-                <th className="p-4 text-right border-b border-slate-200">Actions</th>
-              </tr>
-            </thead>
-
-
-           <thead>
-  <tr className="text-slate-500 uppercase text-[10px] font-bold tracking-widest border-b border-slate-100 bg-slate-50/50">
-    <th className="p-4">Entity & Field</th>
-    <th className="p-4">Change Details</th>
+     
+      <div className="flex-1 flex flex-col px-4 min-h-0 mt-2.5">
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <table className="w-full text-left border-collapse table-fixed">
+          <thead className="sticky top-0 z-20">
+  <tr className="bg-gray-100">
+    <th className="w-[60px] px-4 py-3 text-center text-[10px] font-black text-gray-900 uppercase border border-slate-300">REQ ID</th>
     
-    {/* Dynamic Column Header */}
-    {activeTab === 'pending' ? (
-      <th className="p-4">Requester</th>
-    ) : (
-      <th className="p-4">Timeline & Roles</th>
-    )}
-
-    {activeTab === 'rejected' && <th className="p-4">Rejection Reason</th>}
-    <th className="p-4 text-right">Status</th>
+    {/* Product ID stays small */}
+    <th className="w-[100px] px-4 py-3 text-center text-[10px] font-black text-gray-900 uppercase border border-slate-300">Product ID</th>
+    
+    {/* NEW: Dedicated Column for the Entity/Field Name */}
+    <th className="w-[140px] px-6 py-3 text-[10px] font-black text-gray-900 uppercase border border-slate-300">Target Field</th>
+    
+    {/* NEW: Dedicated Column for the Data Log */}
+    <th className="px-6 py-3 text-[10px] font-black text-gray-900  uppercase border border-slate-300">Value Logs</th>
+    
+   <th className="w-[200px] px-4 py-3 text-[10px] font-black text-gray-900 uppercase border border-slate-300">
+      {filterStatus === 'rejected' ? 'Rejection Reason' : 'Requested By'}
+    </th>
+    
+    <th className={`${(filterStatus === 'approved' || filterStatus === 'rejected') ? 'w-[200px]' : 'w-[140px]'} px-4 py-3 text-[10px] font-black text-gray-900 uppercase border border-slate-300 text-center`}>
+      {(filterStatus === 'approved' || filterStatus === 'rejected') ? 'Verified By' : 'Action'}
+    </th>
   </tr>
 </thead>
+            {/* 🟢 Tbody transition: Softens the update by using opacity instead of disappearing */}
+           <tbody className={`divide-y divide-slate-300 transition-opacity duration-200 ${loading ? 'opacity-40' : 'opacity-100'}`}>
 
-<tbody className="divide-y divide-slate-50">
-  {filteredRequests.map(req => (
-    <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
-      
-      {/* 1. Entity/Field (Consistent) */}
-      <td className="p-4">
-        <div className="flex flex-col">
-          <span className="text-xs font-bold text-slate-800">Product #{req.entity_id}</span>
-          <span className="text-[10px] font-mono text-blue-600 bg-blue-50 w-fit px-1.5 rounded mt-1 uppercase border border-blue-100">
-            {req.field_name}
-          </span>
-        </div>
-      </td>
-
-      {/* 2. Change Details (Consistent) */}
-      <td className="p-4">
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-slate-400 line-through truncate max-w-[80px]">{req.old_value || 'null'}</span>
-          <span className="text-slate-300">→</span>
-          <span className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-            {req.new_value}
-          </span>
-        </div>
-      </td>
-
-      {/* 3. Requester & Admin (Dynamic Side-by-Side) */}
-      <td className="p-4">
-        <div className="flex items-center gap-6">
-          {/* Always show Requester */}
-          <div className="flex flex-col">
-            <span className="text-[9px] text-slate-400 uppercase font-bold">Requested By</span>
-            <span className="text-xs text-slate-700 font-medium">{req.requester_name}</span>
-              <span className="text-[9px] text-slate-500 font-mono">
-        {new Date(req.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-      </span>
-          </div>
-
-          {/* Show Admin only if Approved/Rejected */}
-          {activeTab !== 'pending' && (
-            <>
-              <div className="h-6 w-[1px] bg-slate-200" /> {/* Vertical Divider */}
-              <div className="flex flex-col">
-                <span className="text-[9px] text-blue-500 uppercase font-bold">Verified By</span>
-                <span className="text-xs text-slate-700 font-medium">{req.admin_name || 'System'}</span>
-                <span className={`text-[9px] text-slate-500 font-mono${activeTab === 'approved' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                 
-        {new Date(req.updated_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-      </span>
-              </div>
-            </>
+            {displayedRequests.length === 0 && !loading ? (
+    /* 🟢 PROFESSIONAL EMPTY STATE FOR BLANK PAGES */
+    <tr>
+      <td colSpan="6" className="py-24 text-center bg-slate-50/20">
+        <div className="flex flex-col items-center justify-center">
+         
+          <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">
+            No Requests Found
+          </h3>
+          <p className="text-[11px] text-slate-400 mt-2 max-w-[280px] mx-auto leading-relaxed">
+            {searchTerm 
+              ? `No results matching "${searchTerm}". Try a different search term or filter.` 
+              : `There are currently no ${filterStatus !== 'all' ? filterStatus : ''} approval requests to display.`}
+          </p>
+          {!searchTerm && (
+            <button 
+              onClick={() => navigate('/products')}
+              className="mt-6 px-5 py-2 bg-[#3674B5] font-semibold text-white text-[10px]  uppercase rounded-lg hover:bg-blue-700 transition-all shadow-md active:scale-95"
+            >
+              Go to Product List
+            </button>
           )}
-          
         </div>
-      </td>
-
-      {/* 4. Rejection Reason (Conditional) */}
-      {activeTab === 'rejected' && (
-        <td className="p-4">
-          <div className="text-[11px] text-rose-600 bg-rose-50/50 p-2 rounded italic border border-rose-100 max-w-[180px] line-clamp-2">
-            "{req.rejection_reason || 'No reason provided'}"
-          </div>
-        </td>
-      )}
-
-      {/* 5. Actions/Status (Consistent Position) */}
-      <td className="p-4 text-right">
-        {activeTab === 'pending' ? (
-          <div className="flex justify-end gap-2">
-             <button onClick={() => handleAction(req.id, 'approved')} className="p-1.5 bg-emerald-500 text-white rounded-md hover:bg-emerald-600 shadow-sm transition-transform active:scale-90">
-               <HiCheck size={16}/>
-             </button>
-             <button onClick={() => handleAction(req.id, 'rejected')} className="p-1.5 bg-white text-rose-500 border border-rose-200 rounded-md hover:bg-rose-50 shadow-sm transition-transform active:scale-90">
-               <HiX size={16}/>
-             </button>
-          </div>
-        ) : (
-          <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-full border ${
-            activeTab === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
-          }`}>
-            {activeTab}
-          </span>
-        )}
       </td>
     </tr>
-  ))}
+  ) : (
+  displayedRequests.map(req => (
+    <tr key={req.id} className="group hover:bg-slate-50/80 transition-colors">
+      {/* REQ ID */}
+      <td className="px-4 py-4  text-center text-[12px] text-gray-600 border border-slate-200 bg-slate-50/30">
+        {req.id}
+      </td>
+
+
+
+      <td className="px-4 py-3 text-center border border-slate-200">
+        <span className="text-[12px] text-gray-600 font-semibold">
+          #{req.entity_id}
+        </span>
+      </td>
+
+
+      <td className="px-6 py-3 border border-slate-200 ">
+        <span className="text-[12px] font-black text-[#3674B5] font-semibold px-2 py-1 rounded ">
+          {req.field_name?.replace('_', ' ')}
+        </span>
+      </td>
+
+   <td className="px-6 py-3 border border-slate-300">
+  <div className="flex gap-3 text-[12px]">
+    <div className="flex mt-1 flex-col">
+      <span className="text-slate-500 line-through italic truncate max-w-[120px]">
+        {req.old_value || 'NULL'}
+      </span>
+    </div>
+
+    <span className="text-[#3674B5] font-bold text-lg">→</span>
+
+    <div className="flex mt-1 flex-col">
+      <span className="text-emerald-700 font-bold truncate max-w-[150px]">
+        {req.new_value}
+      </span>
+    </div>
+  </div>
+</td>
+
+
+<td className="w-[200px] px-4 py-3 border border-slate-200">
+  {filterStatus === 'rejected' ? (
+    /* 1. Show Rejection Reason if the filter is set to 'rejected' */
+    <div className="flex flex-col">
+      <span className="text-[11px] text-rose-600 font-bold italic leading-tight">
+        {req.rejection_reason || "No reason provided"}
+      </span>
+      
+    </div>
+  ) : (
+    /* 2. Show Requested By for all other filters */
+    <div className="flex flex-col">
+      <span className="text-[12px] text-gray-600 font-semibold">
+        {req.requester_name||"unknown"}
+      </span>
+      <span className="text-[11px] text-gray-400">
+        {new Date(req.created_at).toLocaleDateString()}
+      </span>
+    </div>
+  )}
+</td>
+
+
+<td className="px-4 py-3 border border-slate-200">
+  {(() => {
+    // CASE 1: When filtering by "All Requests"
+    if (filterStatus === 'all') {
+      if (req.status === 'approved') {
+        return (
+          <div className="flex flex-col items-center">
+            <span className="px-2 py-0.5 font-semibold  text-emerald-600  rounded text-[12px] font-black">
+              Approved
+            </span>
+           
+          </div>
+        );
+      }
+      if (req.status === 'rejected') {
+        return (
+          <div className="flex flex-col items-center">
+            <span className="px-2 py-0.5  text-rose-600 font-semibold rounded text-[12px] font-black ">
+              Rejected
+            </span>
+            <span className="text-[9px] bg-rose-50 px-2 py-1 font-semibold text-rose-600 italic mt-0.5 truncate max-w-[100px]" title={req.rejection_reason}>
+              {req.rejection_reason}
+            </span>
+          </div>
+        );
+      }
+    }
+
+    // CASE 2: When specifically in "Approved" or "Rejected" tabs, show ONLY the name
+    if (filterStatus === 'approved' || filterStatus === 'rejected') {
+      return (
+        <div className="flex flex-col ">
+          <span className="text-[12px] text-gray-600 lowercase font-semibold  truncate">
+            {req.admin_name|| "System"}
+          </span>
+          <span className="text-[11px] text-gray-400">
+        {new Date(req.updated_at).toLocaleDateString()}
+      </span>
+         
+        </div>
+      );
+    }
+
+    // CASE 3: For Pending items (either in "All" or "Pending" filter)
+    return (
+      <div className="flex justify-center gap-2">
+        <button 
+          onClick={() => handleAction(req.id, 'approved')} 
+          className="p-1.5 bg-emerald-500 text-white rounded hover:bg-emerald-600 shadow-sm active:scale-95 transition-transform"
+        >
+          <HiCheck size={16}/>
+        </button>
+        <button 
+          onClick={() => handleAction(req.id, 'rejected')} 
+          className="p-1.5 bg-white text-rose-500 border border-rose-200 rounded hover:bg-rose-50 shadow-sm active:scale-95 transition-transform"
+        >
+          <HiX size={16}/>
+        </button>
+      </div>
+    );
+  })()}
+</td>
+
+    </tr>
+  ))
+)}
 </tbody>
 
 
           </table>
         </div>
+
+        {/* PAGINATION BAR SECTION - Fixed at bottom outside the scroll div */}
+        <div className="px-6 py-3 border-t border-slate-200 bg-white ">
+          <PaginationBar
+            page={page}
+            limit={limit}
+            totalPages={Math.max(Math.ceil(total / limit), 1)}
+            setPage={(p) => updateUrl({ page: p })}
+            setLimit={(l) => updateUrl({ page: 1, limit: l })}
+          />
+        </div>
       </div>
+
     </div>
   );
 }

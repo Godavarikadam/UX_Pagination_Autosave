@@ -2,14 +2,51 @@ const pool = require('../config/database');
 const productService = require('./productService');
 
 // In services/approvalService.js
-const getPendingRequests = async () => {
-    const res = await pool.query(`
-        SELECT p.*, u.username as requester_name 
-        FROM pending_requests p 
-        JOIN users u ON p.requested_by = u.id 
-        ORDER BY p.created_at DESC -- Show newest first
-    `);
-    return res.rows;
+const getPendingRequests = async (page, limit, search = "", status = "all") => {
+  const offset = (page - 1) * limit;
+  let queryParams = [];
+  
+  // 1. BASE QUERIES
+  let queryText = `
+    SELECT p.*, u.username as requester_name 
+    FROM pending_requests p 
+    JOIN users u ON p.requested_by = u.id`;
+    
+  let countText = `SELECT COUNT(*) FROM pending_requests p`;
+
+  // 2. DYNAMIC FILTERS (Status & Search)
+  let filters = ["WHERE 1=1"];
+
+  if (status !== "all") {
+    queryParams.push(status);
+    filters.push(`p.status = $${queryParams.length}`);
+  }
+
+  if (search && search.trim() !== "") {
+    queryParams.push(`%${search.trim()}%`);
+    filters.push(`(p.product_name ILIKE $${queryParams.length} OR p.entity_id::TEXT ILIKE $${queryParams.length})`);
+  }
+
+  const filterClause = filters.join(" AND ");
+  queryText += ` ${filterClause}`;
+  countText += ` ${filterClause}`;
+
+  // 3. SORTING & PAGINATION
+  queryText += ` ORDER BY p.created_at DESC`;
+  
+  const nextParamIdx = queryParams.length;
+  queryText += ` LIMIT $${nextParamIdx + 1} OFFSET $${nextParamIdx + 2}`;
+  
+  // 4. EXECUTION
+  const requestsResult = await pool.query(queryText, [...queryParams, limit, offset]);
+  const countResult = await pool.query(countText, queryParams);
+
+  return {
+    items: requestsResult.rows,
+    total: Number(countResult.rows[0].count),
+    page,
+    limit,
+  };
 };
 
 const handleDecision = async (requestId, decision, adminId, reason = null) => {

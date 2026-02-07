@@ -2,23 +2,38 @@ const pool = require('../config/database');
 const activityService = require('./activityService');
 const compareValues = require('../utils/compareValues');
 
-
 const getProducts = async (page, limit, search = "", sort = "id", sortOrder = "asc") => {
   const offset = (page - 1) * limit;
   
-  let queryText = "SELECT * FROM products WHERE status = 'active'";
-  let countText = "SELECT COUNT(*) FROM products WHERE status = 'active'";
+  // 🟢 CHANGE 1: Use LEFT JOIN LATERAL to get the latest status and reason from activity_log
+  let queryText = `
+    SELECT 
+      p.*, 
+      al.status as current_request_status, 
+      al.rejection_reason
+    FROM products p
+    LEFT JOIN LATERAL (
+      SELECT status, rejection_reason 
+      FROM activity_log 
+      WHERE entity_id = p.id 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    ) al ON true
+    WHERE p.status = 'active'`;
+
+  let countText = "SELECT COUNT(*) FROM products p WHERE p.status = 'active'";
   let queryParams = [];
 
   if (search && search.trim() !== "") {
     const searchPattern = `%${search.trim()}%`;
     
+    // 🟢 CHANGE 2: Ensure we use the 'p.' alias for product columns to avoid ambiguity
     const filter = ` AND (
-      id::TEXT ILIKE $1 OR 
-      name ILIKE $1 OR 
-      category ILIKE $1 OR 
-      unit_price::TEXT ILIKE $1 OR 
-      quantity::TEXT ILIKE $1
+      p.id::TEXT ILIKE $1 OR 
+      p.name ILIKE $1 OR 
+      p.category ILIKE $1 OR 
+      p.unit_price::TEXT ILIKE $1 OR 
+      p.quantity::TEXT ILIKE $1
     )`;
     
     queryText += filter;
@@ -30,7 +45,8 @@ const getProducts = async (page, limit, search = "", sort = "id", sortOrder = "a
   const sortColumn = allowedSortFields.includes(sort) ? sort : "id";
   const direction = sortOrder.toLowerCase() === "desc" ? "DESC" : "ASC";
   
-  queryText += ` ORDER BY ${sortColumn} ${direction}`;
+  // 🟢 CHANGE 3: Apply sorting to the product alias 'p'
+  queryText += ` ORDER BY p.${sortColumn} ${direction}`;
 
   const nextParamIdx = queryParams.length;
   queryText += ` LIMIT $${nextParamIdx + 1} OFFSET $${nextParamIdx + 2}`;
