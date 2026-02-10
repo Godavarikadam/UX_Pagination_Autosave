@@ -2,6 +2,7 @@ import React from 'react';
 import { HiOutlineCode } from "react-icons/hi";
 
 const FieldLogs = ({ a, handleRestore }) => (
+  
   <div key={`logic-${a.id}`} className="min-h-[110px] flex flex-col rounded-md border border-slate-300 bg-white p-1 shadow-xl mb-2">
     <div className="flex justify-between items-center mb-1">
       <div className="flex items-center gap-1">
@@ -15,33 +16,36 @@ const FieldLogs = ({ a, handleRestore }) => (
       </span>
     </div>
 
-    <div className="font-mono text-[11px] leading-relaxed bg-white p-2 rounded border border-white/5 overflow-x-auto">
-      {(() => {
-        const oldLines = (a.old_logic || "").split('\n');
-        const newLines = (a.new_logic || "").split('\n');
-        const diff = newLines.map((line, i) => {
-          if (line !== oldLines[i]) return { type: 'change', old: oldLines[i], new: line };
-          return null;
-        }).filter(x => x);
+   
+<div className="font-mono text-[11px] leading-relaxed bg-white p-2 rounded border border-white/5 overflow-x-auto">
+  {(() => {
+    // 🟢 FIX: Add fallbacks to prevent .split() on null/undefined
+    const oldLines = (a.old_logic || "").split('\n');
+    const newLines = (a.new_logic || "").split('\n');
+    
+    const diff = newLines.map((line, i) => {
+      if (line !== oldLines[i]) return { type: 'change', old: oldLines[i], new: line };
+      return null;
+    }).filter(x => x);
 
-        if (diff.length === 0) return <span className="text-slate-500"> No logic changes detected</span>;
+    if (diff.length === 0) return <span className="text-slate-500 italic">No structural logic changes</span>;
 
-        return diff.map((change, idx) => (
-          <div key={idx} className="mb-2 last:mb-0">
-            {change.old !== undefined && (
-              <div className="text-rose-400/70 flex items-start gap-2 bg-rose-500/5 px-1">
-                <span className="w-3 text-center">-</span>
-                <code className="whitespace-pre">{change.old}</code>
-              </div>
-            )}
-            <div className="text-emerald-400 flex items-start gap-2 bg-emerald-500/5 px-1">
-              <span className="w-3 text-center">+</span>
-              <code className="whitespace-pre">{change.new}</code>
-            </div>
+    return diff.map((change, idx) => (
+      <div key={idx} className="mb-2 last:mb-0">
+        {change.old !== undefined && (
+          <div className="text-rose-400/70 flex items-start gap-2 bg-rose-500/5 px-1">
+            <span className="w-3 text-center">-</span>
+            <code className="whitespace-pre">{change.old}</code>
           </div>
-        ));
-      })()}
-    </div>
+        )}
+        <div className="text-emerald-400 flex items-start gap-2 bg-emerald-500/5 px-1">
+          <span className="w-3 text-center">+</span>
+          <code className="whitespace-pre">{change.new}</code>
+        </div>
+      </div>
+    ));
+  })()}
+</div>
 
     <div className="border-white/5 flex justify-between items-center mt-auto">
       <span className="text-[9px] text-slate-500 font-semibold">

@@ -11,13 +11,13 @@ function LedgerRow({ product, isSelected, onCheckboxToggle, onRowClick, isAdmin,
 
     if (pending) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-[40px] leading-tight">
+        <div className="flex flex-col items-left justify-left min-h-[40px] leading-tight">
           {/* Ghost Value */}
           <span className="text-[11px] text-slate-500 line-through opacity-60">
             {prefix}{currentValue}
           </span>
           
-          {/* New Proposed Value */}
+          
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="text-[12px] font-bold text-amber-600 italic">
               {prefix}{pending.new_value}
@@ -106,20 +106,15 @@ function LedgerRow({ product, isSelected, onCheckboxToggle, onRowClick, isAdmin,
           )}
         </div>
       </td>
-      
-      {/* 🟢 Name Cell with Rejection Reason */}
+    
       <td className="px-6 py-3 w-60 font-medium text-gray-600 border border-slate-200">
         <div className="flex flex-col">
           {renderCell('name', product.name)}
-          {/* {product.current_request_status === 'rejected' && product.rejection_reason && (
-            <div className="mt-1 px-2 py-1 bg-red-50 border border-red-100 rounded text-[9px] text-red-500 italic leading-tight">
-              Reason: {product.rejection_reason}
-            </div>
-          )} */}
+        
         </div>
       </td>
   
-      {/* 🟢 Quantity Cell with Ghost Logic */}
+ 
       <td className="px-10 w-20 py-3 text-gray-600 border border-slate-200">
         {renderCell('quantity', product.quantity)}
       </td>

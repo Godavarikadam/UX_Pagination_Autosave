@@ -3,66 +3,59 @@ const activityService = require('../services/activityService');
 
 const getActivityLogs = async (req, res, next) => {
   try {
-    const { role, userId } = req.query;
+    const { role, userId, type } = req.query; // 🟢 Added 'type'
 
-    if (!role) {
-      return res.json({ items: [], total: 0 });
-    }
+    if (!role) return res.json({ items: [], total: 0 });
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
 
     let queryParams = [];
-    let whereClauseProduct = "";
-    let whereClauseField = "";
+    let whereClause = "";
 
-    // Role-based filtering logic
-    if (role !== 'admin') {
-      whereClauseProduct = "WHERE a.created_by = $1";
-      whereClauseField = "WHERE created_by = $1";
-      queryParams.push(parseInt(userId));
+ // In getActivityLogs (Backend)
+if (role !== 'admin') {
+  // 🟢 CHANGE: Allow users to see logs they created OR logs linked to their requests
+  whereClauseProduct = `WHERE (a.created_by = $1 OR a.request_id IN (SELECT id FROM pending_requests WHERE requested_by = $1))`;
+  whereClauseField = "WHERE created_by = $1";
+  queryParams.push(parseInt(userId));
+}
+
+    // --- SEPARATED LOGIC ---
+    
+    // 1. If fetching 'logic' (Field Schema Logs)
+    if (type === 'logic') {
+      const fieldResult = await pool.query(
+        `SELECT *, 'logic' as log_type FROM field_schema_logs 
+         ${whereClause} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
+        queryParams
+      );
+
+      const totalRes = await pool.query(`SELECT COUNT(*) FROM field_schema_logs ${whereClause}`, queryParams);
+
+      const normalizedFieldLogs = (fieldResult.rows || []).map(row => ({
+        ...row,
+        validation: row.new_logic?.validation || { required: false },
+        product_name: row.field_name ? `Schema: ${row.field_name}` : "Global Schema Update"
+      }));
+
+      return res.json({ items: normalizedFieldLogs, total: parseInt(totalRes.rows[0].count), page, limit });
     }
 
-    // 1. Fetch Product Logs (Existing Logic)
-    const p1 = queryParams.length + 1;
-    const p2 = queryParams.length + 2;
+    // 2. If fetching 'product' (Activity Logs)
+    const productWhere = role !== 'admin' ? "WHERE a.created_by = $1" : "";
     const productResult = await pool.query(
-      `SELECT 
-        a.*, 
-        p.name as product_name,
-        'product' as log_type 
-       FROM activity_log a
-       LEFT JOIN products p ON a.entity_id = p.id
-       ${whereClauseProduct} 
-       ORDER BY a.created_at DESC`,
+      `SELECT a.*, p.name as product_name, 'product' as log_type 
+       FROM activity_log a LEFT JOIN products p ON a.entity_id = p.id
+       ${productWhere} ORDER BY a.created_at DESC LIMIT ${limit} OFFSET ${offset}`,
       queryParams
     );
 
-    // 2. Fetch Field Schema Logs (New Logic for MongoDB changes)
-    const fieldResult = await pool.query(
-      `SELECT *, 'logic' as log_type 
-       FROM field_schema_logs 
-       ${whereClauseField} 
-       ORDER BY created_at DESC`,
-      queryParams
-    );
+    const totalProdRes = await pool.query(`SELECT COUNT(*) FROM activity_log a ${productWhere}`, queryParams);
 
-    // 3. Merge and Sort both sources by created_at (Newest First)
-    const combinedLogs = [...productResult.rows, ...fieldResult.rows].sort((a, b) => 
-      new Date(b.created_at) - new Date(a.created_at)
-    );
+    return res.json({ items: productResult.rows, total: parseInt(totalProdRes.rows[0].count), page, limit });
 
-    // 4. Calculate Totals and Paginate the combined list
-    const totalCount = combinedLogs.length;
-    const paginatedItems = combinedLogs.slice(offset, offset + limit);
-
-    res.json({
-      items: paginatedItems,
-      total: totalCount,
-      page,
-      limit,
-    });
   } catch (err) {
     console.error("Database Error:", err);
     next(err);
@@ -93,8 +86,9 @@ const retryActivity = async (req, res, next) => {
       ]);
     }
 
-    res.json({ message: 'Retry executed' });
+    res.json({ message: 'Retry executed successfully' });
   } catch (err) {
+    console.error("Retry Error:", err);
     next(err);
   }
 };

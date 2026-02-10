@@ -57,8 +57,6 @@ const getProducts = async (req, res, next) => {
     const sort = req.query.sort || config.DEFAULT_SORT_COL || "id";
     const sortOrder = req.query.sortOrder || "asc";
 
-    // console.log(`Final Limit: ${limit} (From URL: ${req.query.limit}, From DB: ${dbLimit})`);
-
     const result = await productService.getProducts(page, limit, search, sort, sortOrder);
     res.json(result);
   } catch (err) {
@@ -80,9 +78,6 @@ const updateProduct = async (req, res, next) => {
       // 🟢 Admin: Proceed to live service
       const result = await productService.updateProduct(id, updates, userId);
 
-      /* CLEANUP LOGIC: When an Admin edits directly, we should "neutralize" 
-         any old rejected or pending badges for the user.
-      */
       await pool.query(
         `UPDATE activity_log 
          SET status = 'approved' 
@@ -106,12 +101,6 @@ const updateProduct = async (req, res, next) => {
         const stringNewVal = String(newVal ?? "");
 
         if (stringOldVal === stringNewVal) continue;
-
-        /* 🟢 FIX FOR RESUBMIT: 
-           We delete both 'pending' AND 'rejected' entries for this field.
-           This ensures that when a user "Fixes & Resubmits", the old 
-           rejected status is removed before the new pending status is added.
-        */
         await pool.query(
           `DELETE FROM pending_requests WHERE entity_id = $1 AND field_name = $2`, 
           [id, field]
@@ -202,17 +191,20 @@ const bulkDelete = async (req, res, next) => {
 };
 
 
-// Add this new function to your controller file
 const updateFieldLogic = async (req, res, next) => {
   try {
     const { field_id, field_name, new_logic, old_logic } = req.body;
-    const userId = req.user.id;
+    
+    // 🟢 Move this UP so you can use it
+    const userId = req.user.id; 
 
-    // 1. Update the logic in MongoDB 
-    // (Assuming you have a service for this, similar to productService)
+    // Now you can log it safely
+    console.log("Saving log for User ID:", userId); 
+
+    // 1. Update the logic in MongoDB
     await fieldService.updateMongoLogic(field_id, new_logic);
 
-    // 2. EXACT STEP: Insert the history record into your new Postgres table
+    // 2. Insert the history record with the actual userId (Admin #11)
     await pool.query(
       `INSERT INTO field_schema_logs (field_name, old_logic, new_logic, created_by) 
        VALUES ($1, $2, $3, $4)`,
@@ -275,17 +267,15 @@ const handleDecision = async (req, res) => {
 
 const getApprovalList = async (req, res, next) => {
   try {
-    // 1. Fetch System Settings (Consistency with Product List)
+ 
     const settingsRes = await pool.query(
       "SELECT key, value FROM system_settings WHERE key IN ('DEFAULT_PAGE_SIZE')"
     );
     const config = {};
-    settingsRes.rows.forEach(row => config[row.key] = row.value);
-
-    // 2. Extract Auth Info
+    s
     const { id: userId, role } = req.user;
 
-    // 3. Handle Pagination Logic (Priority: URL > DB Settings > Hardcoded Default)
+
     const page = parseInt(req.query.page) || 1;
     const dbLimit = parseInt(config.DEFAULT_PAGE_SIZE);
     
@@ -337,20 +327,16 @@ const getApprovalList = async (req, res, next) => {
     query += ` ${whereClause}`;
     countQuery += ` ${whereClause}`;
 
-    // 6. Final Sorting & Pagination
     query += ` ORDER BY COALESCE(p.updated_at, p.created_at) DESC`;
     
-    // Add Limit and Offset as the final parameters
     queryParams.push(limit, offset);
     query += ` LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`;
 
-    // 7. Execute Queries in Parallel
     const [dataResult, countResult] = await Promise.all([
       pool.query(query, queryParams),
       pool.query(countQuery, queryParams.slice(0, queryParams.length - 2)) 
     ]);
 
-    // 8. Respond in Paginated Format
     res.json({
       items: dataResult.rows,
       total: parseInt(countResult.rows[0].count),

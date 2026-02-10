@@ -11,61 +11,67 @@ import { parseFunction } from "../components/dynamic/utils/functionParser";
 
 const ProductForm = () => {
   const [entities, setEntities] = useState([]);
-  const [selectedIndex, setSelectedIndex] = useState(0); // Tracks active column
+  const [selectedIndex, setSelectedIndex] = useState(0); 
   const [previewErrors, setPreviewErrors] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
-// Check if ANY field has a syntax error OR if ANY preview field has a validation error
+
 const hasErrors = entities.some(f => f.syntaxError) || Object.values(previewErrors).some(Boolean);
-  const token = localStorage.getItem("token");
+  const token = sessionStorage.getItem("token");
 
-  // --- LOGIC PRESERVED ---
-  useEffect(() => {
-    const initializeForm = async () => {
-      try {
-        setIsLoading(true);
-        const [sqlRes, mongoRes] = await Promise.all([
-          axios.get("http://localhost:5000/api/forms/schema/products", {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          axios.get("http://localhost:5000/api/forms/get/product-form", { 
-            headers: { Authorization: `Bearer ${token}` }
-          })
-        ]);
 
-        if (sqlRes.data.success) {
-          const sqlColumns = sqlRes.data.columns;
-          const savedEntities = mongoRes.data?.entities || []; 
-          const dynamicFields = sqlColumns
-            .filter(col => !['id', 'created_at', 'updated_at', 'updated_by', 'status'].includes(col.name))
-            .map(col => {
-              const savedField = savedEntities.find(s => s.dbKey === col.name);
-              const finalJs = savedField ? savedField.jsSource : `function validate(v) {\n return null;\n}`;
-              const isRequired = savedField ? savedField.required : false;
-              const parsed = parseFunction(finalJs, isRequired);
-              return {
-                label: savedField?.label || col.name.toUpperCase().replace(/_/g, " "),
-                dbKey: col.name,
-                required: isRequired,
-                jsSource: finalJs,
-                type: parsed.type || "text",
-                options: parsed.options || [],
-                parsedFn: parsed,
-                value: parsed.type === "checkbox" ? [] : "",
-                syntaxError: null
-              };
-            });
-          setEntities(dynamicFields);
-        }
-      } catch (err) {
-        toast.error("Error loading column logic.");
-      } finally {
-        setIsLoading(false);
+useEffect(() => {
+ 
+  console.log("Effect Fired. Token status:", token);
+
+  const initializeForm = async () => {
+    try {
+      setIsLoading(true);
+      console.log("Fetching schema from backend...");
+      
+      const [sqlRes, mongoRes] = await Promise.all([
+        axios.get("http://localhost:5000/api/forms/schema/products"), // Removed token for debug
+        axios.get("http://localhost:5000/api/forms/get/product-form")  // Removed token for debug
+      ]);
+
+      if (sqlRes.data.success) {
+        const sqlColumns = sqlRes.data.columns;
+        const savedEntities = mongoRes.data?.entities || []; 
+        
+        const dynamicFields = sqlColumns
+          .filter(col => !['id', 'created_at', 'updated_at', 'updated_by', 'status'].includes(col.name))
+          .map(col => {
+            const savedField = savedEntities.find(s => (s.dbKey || s.db_key) === col.name);
+            const finalJs = savedField?.jsSource || `function validate(v) {\n  return null;\n}`;
+            const isRequired = !!(savedField?.required || savedField?.validation?.required);
+            
+            const parsed = parseFunction(finalJs, isRequired);
+            return {
+              label: savedField?.label || col.name.toUpperCase().replace(/_/g, " "),
+              dbKey: col.name,
+              required: isRequired,
+              jsSource: finalJs,
+              type: parsed.type || "text",
+              options: parsed.options || [],
+              parsedFn: parsed,
+            value: savedField?.value || (parsed.type === "checkbox" ? [] : ""),
+              syntaxError: null
+            };
+          });
+          
+        setEntities(dynamicFields);
+        
       }
-    };
-    if (token) initializeForm();
-  }, [token]);
+    } catch (err) {
+      console.error("FAILED: API request error", err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  initializeForm(); 
+}, [token]);
 
   const toggleRequired = (index) => {
     setEntities(prev => {
@@ -80,13 +86,10 @@ const updateLogic = (index, code) => {
     const arr = [...prev];
     let syntaxError = null;
     
-    // 1. Strip DSL for the syntax check
     const pureJs = code.replace(/^(dropdown|radio|checkbox)\{.*?\}/s, "").trim();
 
     try {
-      // ✅ THE FIX:
-      // We don't force a 'return'. We just check if the grammar is valid.
-      // This allows: const x = (v) => {}, function x(v) {}, etc.
+     
       new Function(pureJs); 
     } catch (err) {
       syntaxError = err.message;
@@ -148,24 +151,17 @@ const updateLogic = (index, code) => {
   
   for (let f of entities) {
     try {
-      // 1. Strip DSL (dropdown/radio/etc)
+ 
       const pureJs = f.jsSource.replace(/^(dropdown|radio|checkbox)\{.*?\}/s, "").trim();
-      
-      // 2. THE FIX: Test as a script, NOT a return statement.
-      // This allows 'const', 'let', and 'function' declarations.
       new Function(pureJs); 
-      
-    } catch (err) {
-      // If logic is broken, stop and show which field is the problem
+      } catch (err) {
+    
       return toast.error(`Cannot save! Syntax error in ${f.label}: ${err.message}`);
     }
   }
-
-  // Check for validation errors in the preview panel
   if (Object.values(previewErrors).some(Boolean)) {
     return toast.error("Fix validation errors in the preview before saving");
   }
-  // 4. If all clear, proceed to save...
   const payloadEntities = entities.map(e => ({
     label: e.label,
     dbKey: e.dbKey,
@@ -182,6 +178,7 @@ const updateLogic = (index, code) => {
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (res.data.success) toast.success("All schema logic saved!");
+    if (window.refreshActivityLogs) window.refreshActivityLogs();
   } catch (err) {
     toast.error(err.response?.data?.error || "Save failed.");
   }
@@ -193,7 +190,6 @@ const updateLogic = (index, code) => {
   return (
     <div className="h-[calc(100vh-64px)] bg-[#f0f4f8] flex overflow-hidden">
       
-      {/* 1. LEFT: COLUMN NAVIGATOR (Handles many columns) */}
       <div className="w-62 bg-white border-r border-gray-200 flex flex-col shadow-sm">
         <div className="p-4 border-b bg-gray-50 flex flex-col gap-3">
          
@@ -232,9 +228,7 @@ const updateLogic = (index, code) => {
         </div>
       </div>
 
-      
 
-      {/* 2. MIDDLE: FOCUSED LOGIC WORKSPACE */}
 <div className="flex-1 flex flex-col px-3  overflow-hidden bg-gray-100 min-w-[600px]">
   <div className="bg-white rounded-md shadow-xl border border-gray-200 flex flex-col h-60vh overflow-hidden">
   
@@ -244,7 +238,7 @@ const updateLogic = (index, code) => {
 <div className="flex  items-center gap-4">
  
   <button 
-    onClick={() => navigate('/products')} // Update path as needed
+    onClick={() => navigate('/products')} 
     className="p-1 -ml-1 rounded-full  bg-gray-200 hover:bg-gray-300 transition-colors group"
     title="Back to Products"
   >
@@ -256,7 +250,7 @@ const updateLogic = (index, code) => {
       <h1 className="text-[11px] font-black text-gray-800 uppercase">
         {currentField?.label}
       </h1>
-      {/* Dynamic Type Badge */}
+   
       <span className="px-2 py-0.5 rounded bg-blue-50 text-[#3674B5] text-[9px] font-bold border border-blue-100 uppercase">
         {currentField?.type || 'text'}
       </span>
@@ -297,7 +291,6 @@ const updateLogic = (index, code) => {
       )}
     </div>
 
-    {/* --- NEW: GLOBAL ERROR CONSOLE AT THE BOTTOM --- */}
     {entities.some(e => e.syntaxError) && (
       <div className="h-3/4 border-t border-gray-200 bg-white flex flex-col overflow-hidden">
         <div className="px-4 py-2 bg-gray-50 border-b flex justify-between items-center">

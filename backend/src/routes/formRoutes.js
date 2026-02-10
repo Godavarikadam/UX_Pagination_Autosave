@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/database');
-const Form = require('../models/form'); // The model you just created
+const Form = require('../models/form'); 
+const authenticate=require('../middlewares/auth')
 
 router.get('/get/product-form', async (req, res) => {
   try {
@@ -15,30 +16,20 @@ router.get('/get/product-form', async (req, res) => {
   }
 });
 
-
-
-router.post('/save', async (req, res) => {
+router.post('/save',authenticate('admin'), async (req, res) => {
   try {
     const { entities } = req.body;
- 
     const userId = req.user?.id || 1; 
-
-    // 1. FETCH THE "BEFORE" STATE
-    // We get the old logic from MongoDB before we overwrite it.
     const existingDoc = await Form.findOne({ tableName: "products" });
     const existingEntities = existingDoc ? existingDoc.entities : [];
-
     
   for (const newField of entities) {
-  // 1. Find the old field
+
   const oldField = existingEntities.find(e => e.dbKey === newField.dbKey);
   
-  // 2. DEFINE the variables FIRST (This was the missing part!)
   const oldLogic = oldField ? oldField.jsSource : "";
   const newLogic = newField.jsSource;
 
-
-  // 3. NOW you can compare them
   if (oldLogic !== newLogic) {
 
     await pool.query(
@@ -65,7 +56,7 @@ router.post('/save', async (req, res) => {
   }
 });
 
-// backend/routes/formRoutes.js
+
 router.get('/schema/:tableName', async (req, res) => {
   const { tableName } = req.params;
   try {

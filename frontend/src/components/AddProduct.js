@@ -11,17 +11,20 @@ const AddProduct = ({ onClose, refreshData }) => {
   // 1. Fetch the Admin-defined rules from MongoDB
   useEffect(() => {
     const fetchSchema = async () => {
+      console.log("1. Fetch Started");
       try {
         const res = await axios.get("http://localhost:5000/api/forms/product-form");
-        
-        const initialized = res.data.entities.map((field) => ({
-          ...field,
-          // Hydrate the string from Monaco into a JS function
-          parsed: parseFunction(field.jsSource, field.required),
-          value: "" 
-        }));
+        console.log("2. Data Received:", res.data);
+        const initialized = res.data.entities.map((field) => {
+          console.log("3. Mapping Field:", field.label); // Check if mapping starts
+          return {
+            ...field,
+            parsed: parseFunction(field.jsSource, field.required),
+            value: "" 
+          };
+        });
         setEntities(initialized);
-      } catch (err) {
+      }catch (err) {
         console.error("Failed to load dynamic schema", err);
       }
     };

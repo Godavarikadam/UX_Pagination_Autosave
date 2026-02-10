@@ -30,7 +30,7 @@ function ActivityFeed() {
     try {
       setLoading(true);
       const res = await api.get("/activity", {
-        params: { role: user.role, userId: user.id }
+        params: { role: user.role, userId: user.id,type: activeTab === 'logic' ? 'logic' : 'product' }
       });
       const sortedData = (res.data.items || []).sort((a, b) => {
       const dateA = new Date(a.updated_at || a.created_at);
@@ -52,7 +52,7 @@ function ActivityFeed() {
     const handleRefresh = () => fetchActivities();
     window.addEventListener("activityUpdated", handleRefresh);
     return () => window.removeEventListener("activityUpdated", handleRefresh);
-  }, [user]);
+  }, [user,activeTab]);
 
   const handleRestore = (log) => {
     toast((t) => (
@@ -61,9 +61,9 @@ function ActivityFeed() {
           Restore <span className="text-[#3674B5] font-semibold">{log.field_name}</span>?
         </p>
         <div className="mt-1 flex justify-end gap-1">
-          <button className="px-3 py-1.5 text-[10px] text-slate-400" onClick={() => toast.dismiss(t.id)}>Cancel</button>
+          <button className="px-2 py-1.5 text-[11px] bg-gray-200 rounded-md  text-slate-600" onClick={() => toast.dismiss(t.id)}>Cancel</button>
           <button
-            className="rounded-md bg-white px-2 py-1 text-[10px] text-white"
+            className="rounded-md  px-2 py-1.5 bg-gray-200 text-[11px] text-black"
             onClick={async () => {
               toast.dismiss(t.id);
               const loadingToast = toast.loading("Syncing...");

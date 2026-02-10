@@ -10,6 +10,11 @@ function Approval() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
+const rawuser=sessionStorage.getItem('user');
+const userdata=rawuser?JSON.parse(rawuser):{};
+const isAdmin=userdata.role==='admin';
+
+
   const page = Number(searchParams.get("page")) || 1;
   const limit = Number(searchParams.get("limit")) || 10;
   const searchTerm = searchParams.get("search") || "";
@@ -32,10 +37,7 @@ function Approval() {
     setSearchParams(params, { replace: true });
   };
 
-  // --- DATA FETCHING ---
   const fetchRequests = async () => {
-    // 🟢 ANTI-FLICKER: We don't clear setRequests([]) here. 
-    // Old data stays visible until new data arrives.
     setLoading(true);
     try {
       const endpoint = (productId && requestId) 
@@ -141,22 +143,22 @@ function Approval() {
           <thead className="sticky top-0 z-20">
   <tr className="bg-gray-100">
     <th className="w-[60px] px-4 py-3 text-center text-[10px] font-black text-gray-900 uppercase border border-slate-300">REQ ID</th>
-    
-    {/* Product ID stays small */}
+
     <th className="w-[100px] px-4 py-3 text-center text-[10px] font-black text-gray-900 uppercase border border-slate-300">Product ID</th>
-    
-    {/* NEW: Dedicated Column for the Entity/Field Name */}
+  
     <th className="w-[140px] px-6 py-3 text-[10px] font-black text-gray-900 uppercase border border-slate-300">Target Field</th>
     
-    {/* NEW: Dedicated Column for the Data Log */}
+   
     <th className="px-6 py-3 text-[10px] font-black text-gray-900  uppercase border border-slate-300">Value Logs</th>
     
+   {isAdmin&&(
    <th className="w-[200px] px-4 py-3 text-[10px] font-black text-gray-900 uppercase border border-slate-300">
       {filterStatus === 'rejected' ? 'Rejection Reason' : 'Requested By'}
     </th>
+    )}
     
     <th className={`${(filterStatus === 'approved' || filterStatus === 'rejected') ? 'w-[200px]' : 'w-[140px]'} px-4 py-3 text-[10px] font-black text-gray-900 uppercase border border-slate-300 text-center`}>
-      {(filterStatus === 'approved' || filterStatus === 'rejected') ? 'Verified By' : 'Action'}
+      {(filterStatus === 'approved' ? 'Verified By' : filterStatus==='rejected'? 'Rejected By':'Action')}
     </th>
   </tr>
 </thead>
@@ -229,7 +231,7 @@ function Approval() {
   </div>
 </td>
 
-
+{isAdmin&&(
 <td className="w-[200px] px-4 py-3 border border-slate-200">
   {filterStatus === 'rejected' ? (
     /* 1. Show Rejection Reason if the filter is set to 'rejected' */
@@ -245,13 +247,13 @@ function Approval() {
       <span className="text-[12px] text-gray-600 font-semibold">
         {req.requester_name||"unknown"}
       </span>
-      <span className="text-[11px] text-gray-400">
-        {new Date(req.created_at).toLocaleDateString()}
-      </span>
+    <span className="text-[9px] text-slate-500 font-mono">
+          {new Date(req.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+        </span>
     </div>
   )}
 </td>
-
+)}
 
 <td className="px-4 py-3 border border-slate-200">
   {(() => {
@@ -288,17 +290,20 @@ function Approval() {
           <span className="text-[12px] text-gray-600 lowercase font-semibold  truncate">
             {req.admin_name|| "System"}
           </span>
-          <span className="text-[11px] text-gray-400">
-        {new Date(req.updated_at).toLocaleDateString()}
-      </span>
+         <span className="text-[9px] text-slate-500 font-mono">
+          {new Date(req.updated_at ).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+        </span>
          
         </div>
       );
     }
 
-    // CASE 3: For Pending items (either in "All" or "Pending" filter)
+
+
     return (
       <div className="flex justify-center gap-2">
+        {isAdmin?(
+          <>
         <button 
           onClick={() => handleAction(req.id, 'approved')} 
           className="p-1.5 bg-emerald-500 text-white rounded hover:bg-emerald-600 shadow-sm active:scale-95 transition-transform"
@@ -311,6 +316,12 @@ function Approval() {
         >
           <HiX size={16}/>
         </button>
+        </>
+        ):(
+          <span className="text-[12px] font-semibold text-amber-600  px-2 py-1 rounded  tracking-wider ">
+        Pending
+      </span>
+        )}
       </div>
     );
   })()}
