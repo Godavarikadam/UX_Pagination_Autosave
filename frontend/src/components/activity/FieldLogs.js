@@ -7,7 +7,7 @@ const FieldLogs = ({ a, handleRestore }) => (
     <div className="flex justify-between items-center mb-1">
       <div className="flex items-center gap-1">
         <HiOutlineCode className="text-slate-500 w-3 h-3" />
-        <span className="text-[9px] font-semibold font-black text-slate-500 uppercase px-2 py-0.5 rounded bg-white">
+        <span className="text-[9px] font-semibold font-black text-slate-800 uppercase px-2 py-0.5 rounded bg-white">
           {a.field_name || "Logic Update"}
         </span>
       </div>
@@ -33,12 +33,12 @@ const FieldLogs = ({ a, handleRestore }) => (
     return diff.map((change, idx) => (
       <div key={idx} className="mb-2 last:mb-0">
         {change.old !== undefined && (
-          <div className="text-rose-400/70 flex items-start gap-2 bg-rose-500/5 px-1">
+          <div className="text-rose-600/70 flex items-start gap-2 bg-rose-500/5 px-1">
             <span className="w-3 text-center">-</span>
             <code className="whitespace-pre">{change.old}</code>
           </div>
         )}
-        <div className="text-emerald-400 flex items-start gap-2 bg-emerald-500/5 px-1">
+        <div className="text-emerald-600 flex items-start gap-2 bg-emerald-500/5 px-1">
           <span className="w-3 text-center">+</span>
           <code className="whitespace-pre">{change.new}</code>
         </div>

@@ -94,7 +94,7 @@ const ProductLogs = ({ a, isAdmin, navigate }) => {
                 if (!a.request_id && !isLogicLog) return toast.error("Log entry is missing its reference ID");
                 navigate(isLogicLog ? `/products/form` : `/approvals/${a.entity_id}/${a.request_id}`);
               }}
-              className="flex items-center gap-1 px-2 py-0.5 bg-amber-500 text-white rounded text-[8px] font-bold uppercase hover:bg-amber-600"
+              className="flex items-center gap-1 px-2 py-0.5 bg-amber-200 text-black rounded text-[8px] font-semibold uppercase hover:bg-amber-400"
             >
               <HiOutlineEye size={10} /> Review
             </button>
@@ -117,16 +117,16 @@ const ProductLogs = ({ a, isAdmin, navigate }) => {
     </div>
   ) : (
     <div className="flex items-center gap-1.5 overflow-hidden">
-      {/* Old Value */}
-      <div className="text-[9px] font-medium text-slate-400 line-through truncate">
+      
+      <div className="text-[11px] font-semibold text-slate-400 line-through truncate">
         {formatVal(a.old_value)}
       </div>
       
-      {/* Arrow */}
-      <span className="text-slate-400 text-[10px] leading-none">→</span>
       
-      {/* New Value */}
-      <div className={`text-[9px] font-bold truncate ${
+      <span className="text-slate-400 text-[12px] leading-none">→</span>
+      
+    
+      <div className={`text-[11px] font-semibold truncate ${
           actionStatus === "Rejected" ? "text-rose-700" : 
           actionStatus === "Approved" ? "text-emerald-700" : "text-[#3674B5]"
       }`}>
@@ -147,7 +147,7 @@ const ProductLogs = ({ a, isAdmin, navigate }) => {
                 <span className={`text-[8px] font-bold uppercase px-1 rounded ${
                   isRejected ? 'bg-rose-200 text-rose-800' : 'bg-emerald-200 text-emerald-800'
                 }`}>
-                  {isRejected ? 'Rejected' : 'Verified'} by Admin #{a.admin_id}
+                  {isRejected ? 'Rejected' : 'Verified'} by Admin Id {a.admin_id}
                 </span>
               </div>
             )}

@@ -7,12 +7,12 @@ function LedgerRow({ product, isSelected, onCheckboxToggle, onRowClick, isAdmin,
   const [deleting, setDeleting] = useState(false);
 
   const renderCell = (fieldName, currentValue, prefix = "") => {
-    const pending = pendingChanges?.find(r => r.field_name === fieldName);
-
+    const pending = pendingChanges?.find(r => r.field_name === fieldName&& r.status === 'pending');
+;
     if (pending) {
       return (
         <div className="flex flex-col items-left justify-left min-h-[40px] leading-tight">
-          {/* Ghost Value */}
+         
           <span className="text-[11px] text-slate-500 line-through opacity-60">
             {prefix}{currentValue}
           </span>
@@ -99,11 +99,14 @@ function LedgerRow({ product, isSelected, onCheckboxToggle, onRowClick, isAdmin,
               Pending
             </span>
           )}
-          {product.current_request_status === 'rejected' && (
-            <span className="w-fit px-1.5 py-0.5 bg-red-100 text-red-600 text-[8px] font-bold rounded uppercase tracking-tighter">
-              Rejected
-            </span>
-          )}
+         {product.current_request_status === 'rejected' && (
+  <span 
+    title={`Reason: ${product.rejection_reason || 'No reason provided'}`} 
+    className="w-fit px-1.5 py-0.5 bg-red-100 text-red-600 text-[8px] font-bold rounded uppercase tracking-tighter  "
+  >
+    Rejected
+  </span>
+)}
         </div>
       </td>
     

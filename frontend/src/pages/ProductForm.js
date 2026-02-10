@@ -229,7 +229,7 @@ const updateLogic = (index, code) => {
       </div>
 
 
-<div className="flex-1 flex flex-col px-3  overflow-hidden bg-gray-100 min-w-[600px]">
+<div className="flex-1 flex flex-col px-2  overflow-hidden bg-gray-100 min-w-[600px]">
   <div className="bg-white rounded-md shadow-xl border border-gray-200 flex flex-col h-60vh overflow-hidden">
   
     <div className="p-3 border-b border-gray-200 mb-6 flex justify-between items-center bg-white">
@@ -251,9 +251,7 @@ const updateLogic = (index, code) => {
         {currentField?.label}
       </h1>
    
-      <span className="px-2 py-0.5 rounded bg-blue-50 text-[#3674B5] text-[9px] font-bold border border-blue-100 uppercase">
-        {currentField?.type || 'text'}
-      </span>
+      
     </div>
     <p className="text-[10px] text-gray-500 font-mono flex items-center gap-1 mt-0.5">
       <span className="opacity-100">db_key:</span> {currentField?.dbKey}

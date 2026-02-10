@@ -272,7 +272,6 @@ const getApprovalList = async (req, res, next) => {
       "SELECT key, value FROM system_settings WHERE key IN ('DEFAULT_PAGE_SIZE')"
     );
     const config = {};
-    s
     const { id: userId, role } = req.user;
 
 
@@ -294,7 +293,7 @@ const getApprovalList = async (req, res, next) => {
     // 5. Build Dynamic SQL
     const queryParams = [];
     let query = `
-      SELECT p.*, u1.email as requester_name, u2.email as admin_name
+      SELECT p.*, u1.id as requester_id, u2.id as admin_id
       FROM pending_requests p 
       JOIN users u1 ON p.requested_by = u1.id 
       LEFT JOIN users u2 ON p.admin_id = u2.id
@@ -371,7 +370,7 @@ const getApprovalDetail = async (req, res, next) => {
     }
 
     const query = `
-      SELECT p.*, u1.email as requester_name, u2.email as admin_name
+      SELECT p.*, u1.id as requester_id, u2.id as admin_id
       FROM pending_requests p 
       JOIN users u1 ON p.requested_by = u1.id 
       LEFT JOIN users u2 ON p.admin_id = u2.id

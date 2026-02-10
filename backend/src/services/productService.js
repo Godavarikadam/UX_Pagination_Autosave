@@ -16,7 +16,14 @@ const getProducts = async (page, limit, search = "", sort = "id", sortOrder = "a
       SELECT status, rejection_reason 
       FROM activity_log 
       WHERE entity_id = p.id 
-      ORDER BY created_at DESC 
+      ORDER BY 
+        CASE 
+          WHEN status = 'pending' THEN 1
+          WHEN status = 'rejected' THEN 2
+        
+          ELSE 3 
+        END ASC, 
+        created_at DESC 
       LIMIT 1
     ) al ON true
     WHERE p.status = 'active'`;

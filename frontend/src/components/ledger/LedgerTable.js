@@ -43,10 +43,10 @@ useEffect(() => {
   const fetchPending = async () => {
     try {
      const res = await api.get('/products/approvals/list');
-      console.log("🔍 API Response (Approvals):", res.data);
+     
       const items = res.data.items || (Array.isArray(res.data) ? res.data : []);
 
-      setPendingRequests(items.filter(r => r.status === 'pending'));
+      setPendingRequests(items);
     } catch (err) {
       console.error("Failed to fetch pending requests", err);
     }
@@ -358,6 +358,7 @@ useEffect(() => {
   onRowClick={() => handleRowClick(p)}
   onDeleteSuccess={handleDeleteSuccess}
   isAdmin={isAdmin} 
+  overallStatus={p.current_request_status}
  pendingChanges={pendingRequests.filter(r => String(r.entity_id) === String(p.id))}
 />
     ))

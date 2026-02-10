@@ -70,23 +70,64 @@ const isAdmin=userdata.role==='admin';
     fetchRequests();
   }, [productId, requestId, page, limit, searchTerm, filterStatus]);
 
-  const handleAction = async (requestId, decision) => {
-    let reason = "";
-    if (decision === 'rejected') {
-      reason = window.prompt("Enter rejection reason:");
-      if (!reason?.trim()) return toast.error("Reason required for rejection");
-    }
+const handleAction = async (requestId, decision) => {
+  // 1. If Approved, proceed directly
+  if (decision === 'approved') {
+    return executeDecision(requestId, 'approved', "");
+  }
 
-    try {
-      await api.post("/products/approvals/decision", { requestId, decision, reason });
-      toast.success(`Request ${decision} successfully`);
-      fetchRequests();
-      window.dispatchEvent(new Event("activityUpdated"));
-    } catch (err) {
-      toast.error("Action failed");
-    }
-  };
+  // 2. If Rejected, show the Interactive Toast
+  toast((t) => (
+    <div className="flex flex-col gap-3 min-w-[280px]">
+      <div className="flex flex-col">
+        <span className="text-[13px] font-bold text-slate-800">Rejection Reason</span>
+        <span className="text-[11px] text-slate-500">Please explain why this change was declined.</span>
+      </div>
+      
+      <textarea
+        id={`reason-input-${requestId}`}
+        rows="3"
+        className="w-full p-2 text-xs border border-slate-200 rounded focus:ring-1 focus:ring-rose-500 outline-none"
+        placeholder="Type reason here..."
+      />
 
+      <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <button
+          onClick={() => toast.dismiss(t.id)}
+          className="px-3 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 rounded"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={async () => {
+            const reasonVal = document.getElementById(`reason-input-${requestId}`).value;
+            if (!reasonVal.trim()) {
+              toast.error("Reason is required", { id: 'validation' });
+              return;
+            }
+            toast.dismiss(t.id);
+            executeDecision(requestId, 'rejected', reasonVal);
+          }}
+          className="px-3 py-1 text-[11px] font-bold bg-rose-600 text-white rounded hover:bg-rose-700 shadow-sm"
+        >
+          Confirm Rejection
+        </button>
+      </div>
+    </div>
+  ), { duration: Infinity, position: 'top-center' });
+};
+
+// 3. Helper function to handle the actual API call
+const executeDecision = async (requestId, decision, reason) => {
+  try {
+    await api.post("/products/approvals/decision", { requestId, decision, reason });
+    toast.success(`Request ${decision} successfully`);
+    fetchRequests();
+    window.dispatchEvent(new Event("activityUpdated"));
+  } catch (err) {
+    toast.error("Action failed");
+  }
+};
   
   const displayedRequests = requests.filter(req => {
     const matchesStatus = filterStatus === "all" || req.status.toLowerCase() === filterStatus.toLowerCase();
@@ -102,7 +143,7 @@ const isAdmin=userdata.role==='admin';
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between p-4 pb-0 gap-4 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <div className="text-[12px] font-semibold text-gray-500">
+          <div className="text-[12px] ml-4 mb-1 font-semibold text-gray-500">
             Total Items: <span className="text-[#3674B5]">{total}</span>
           </div>
 
@@ -125,7 +166,7 @@ const isAdmin=userdata.role==='admin';
             <select 
               value={filterStatus}
               onChange={(e) => updateUrl({ status: e.target.value, page: 1 })}
-              className="pl-8 pr-7 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 uppercase  outline-none focus:ring-0.5 focus:ring-gray-200 appearance-none cursor-pointer shadow-sm"
+              className="pl-8 pr-7 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 uppercase  outline-none focus:ring-0.5 focus:ring-gray-200 appearance-none cursor-pointer shadow-sm"
             >
               <option value="all">All Requests</option>
               <option value="pending">Pending</option>
@@ -244,8 +285,8 @@ const isAdmin=userdata.role==='admin';
   ) : (
     /* 2. Show Requested By for all other filters */
     <div className="flex flex-col">
-      <span className="text-[12px] text-gray-600 font-semibold">
-        {req.requester_name||"unknown"}
+      <span className="text-[12px] uppercase text-gray-600 font-semibold">
+        Id: {req.requester_id||"unknown"}
       </span>
     <span className="text-[9px] text-slate-500 font-mono">
           {new Date(req.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
@@ -287,8 +328,8 @@ const isAdmin=userdata.role==='admin';
     if (filterStatus === 'approved' || filterStatus === 'rejected') {
       return (
         <div className="flex flex-col ">
-          <span className="text-[12px] text-gray-600 lowercase font-semibold  truncate">
-            {req.admin_name|| "System"}
+          <span className="text-[12px] text-gray-600  font-semibold uppercase truncate">
+           Id: {req.admin_id|| "System"}
           </span>
          <span className="text-[9px] text-slate-500 font-mono">
           {new Date(req.updated_at ).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}

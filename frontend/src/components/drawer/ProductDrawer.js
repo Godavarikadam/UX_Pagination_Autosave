@@ -344,7 +344,7 @@ const handleDone = async () => {
   >
     {isNew ? "Add Product" : (
       user.role === 'admin' 
-        ? "Save Changes (Live)" // Admins always save live
+        ? "Save Changes" // Admins always save live
         : (localProduct.current_request_status === 'rejected' ? "Fix & Resubmit" : "Submit Update")
     )}
   </button>
