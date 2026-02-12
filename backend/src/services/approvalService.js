@@ -1,12 +1,10 @@
 const pool = require('../config/database');
 const productService = require('./productService');
 
-// In services/approvalService.js
 const getPendingRequests = async (page, limit, search = "", status = "all") => {
   const offset = (page - 1) * limit;
   let queryParams = [];
   
-  // 1. BASE QUERIES
   let queryText = `
     SELECT p.*, u.username as requester_name 
     FROM pending_requests p 
@@ -14,7 +12,6 @@ const getPendingRequests = async (page, limit, search = "", status = "all") => {
     
   let countText = `SELECT COUNT(*) FROM pending_requests p`;
 
-  // 2. DYNAMIC FILTERS (Status & Search)
   let filters = ["WHERE 1=1"];
 
   if (status !== "all") {
@@ -31,13 +28,11 @@ const getPendingRequests = async (page, limit, search = "", status = "all") => {
   queryText += ` ${filterClause}`;
   countText += ` ${filterClause}`;
 
-  // 3. SORTING & PAGINATION
   queryText += ` ORDER BY p.created_at DESC`;
   
   const nextParamIdx = queryParams.length;
   queryText += ` LIMIT $${nextParamIdx + 1} OFFSET $${nextParamIdx + 2}`;
-  
-  // 4. EXECUTION
+
   const requestsResult = await pool.query(queryText, [...queryParams, limit, offset]);
   const countResult = await pool.query(countText, queryParams);
 
@@ -50,30 +45,48 @@ const getPendingRequests = async (page, limit, search = "", status = "all") => {
 };
 
 const handleDecision = async (requestId, decision, adminId, reason = null) => {
-    // 1. Get request details
+
     const reqRes = await pool.query("SELECT * FROM pending_requests WHERE id = $1", [requestId]);
     const request = reqRes.rows[0];
 
     if (decision === 'approved') {
-        // 🟢 Push to Production using your existing service
-        await productService.updateProduct(
-            request.entity_id, 
-            { [request.field_name]: request.new_value }, 
-            adminId
-        );
-        
-        await pool.query("UPDATE pending_requests SET status = 'approved' WHERE id = $1", [requestId]);
+       
+        if (request.field_name === 'CREATE_NEW_PRODUCT') {
+           
+            const data = JSON.parse(request.new_value);
+
+            const productRes = await pool.query(
+                `INSERT INTO products (name, quantity, unit_price, description, category, status, updated_by)
+                 VALUES ($1, $2, $3, $4, $5, 'active', $6) RETURNING id`,
+                [data.name, data.quantity, data.unit_price, data.description, data.category, adminId]
+            );
+            
+            const newProductId = productRes.rows[0].id;
+
+            await pool.query("UPDATE pending_requests SET status = 'approved', entity_id = $1 WHERE id = $2", [newProductId, requestId]);
+            await pool.query("UPDATE activity_log SET status = 'approved', entity_id = $1 WHERE request_id = $2", [newProductId, requestId]);
+
+        } else {
+            await productService.updateProduct(
+                request.entity_id, 
+                { [request.field_name]: request.new_value }, 
+                adminId
+            );
+            
+            await pool.query("UPDATE pending_requests SET status = 'approved' WHERE id = $1", [requestId]);
+
+            await pool.query("UPDATE activity_log SET status = 'approved' WHERE request_id = $1", [requestId]);
+        }
     } else {
-        // 🔴 Reject
+
         await pool.query(
             "UPDATE pending_requests SET status = 'rejected', rejection_reason = $1 WHERE id = $2",
             [reason, requestId]
         );
         
-        // Update the activity_log status so the user sees it in their feed
         await pool.query(
-            "UPDATE activity_log SET status = 'rejected', rejection_reason = $1 WHERE entity_id = $2 AND field_name = $3 AND status = 'pending'",
-            [reason, request.entity_id, request.field_name]
+            "UPDATE activity_log SET status = 'rejected', rejection_reason = $1 WHERE request_id = $2",
+            [reason, requestId]
         );
     }
     return { success: true };

@@ -120,49 +120,86 @@ const updateProduct = async (id, updates, userId) => {
   }
 };
 
-const createProduct = async (data, userId, userRole) => {
+const createProduct = async (data, userId, userRole,isApproval=false) => {
+  // 1. Fetch system settings for defaults
   const settingsRes = await pool.query(
     "SELECT key, value FROM system_settings WHERE key IN ('min_product_qty', 'min_product_price')"
   );
   
   const config = {};
   settingsRes.rows.forEach(row => config[row.key] = row.value);
-
   const defaultQty = parseInt(config.min_product_qty) || 1;
   const defaultPrice = parseFloat(config.min_product_price) || 1.00;
 
-  const result = await pool.query(
-    `INSERT INTO products (name, quantity, unit_price, description, category, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING *`,
-    [
-      data.name || "New Product",
-      data.quantity ?? defaultQty,
-      data.unit_price ?? defaultPrice,
-      data.description || "",
-      data.category || "",
-      userId,
-    ]
-  );
-
-  const newProduct = result.rows[0];
-
-  // 🟢 DYNAMIC LOGIC: Build the "Created By" string
-  const actorDisplay = userRole === 'admin' ? 'Admin' : `User ID: ${userId}`;
-  const logMessage = `New product added by ${actorDisplay}`;
-
-  if (typeof activityService !== 'undefined') {
-    await activityService.logActivity(
-      'product', 
-      newProduct.id, 
-      'creation', 
-      null, 
-      logMessage, // 🟢 Use the new dynamic string here
-      userId, 
-      'success'
+  // 🟢 LOGIC SPLIT: Check if the actor is an Admin or a User
+  if (userRole === 'admin') {
+    // ADMIN PATH: Keeps your original immediate insertion logic
+    const result = await pool.query(
+      `INSERT INTO products (name, quantity, unit_price, description, category, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        data.name || "New Product",
+        data.quantity ?? defaultQty,
+        data.unit_price ?? defaultPrice,
+        data.description || "",
+        data.category || "",
+        userId,
+      ]
     );
+
+    const newProduct = result.rows[0];
+    if (!isApproval && typeof activityService !== 'undefined') {
+      await activityService.logActivity('product', newProduct.id, 'creation', null, `New product added by Admin`, userId, 'success');
+    }
+    return newProduct;
+
+  } else {
+    // 🟠 USER PATH: Instead of inserting a product, create a PENDING REQUEST
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 1. Create the entry in pending_requests
+      const requestSql = `
+        INSERT INTO pending_requests (
+          entity_type, entity_id, field_name, old_value, new_value, status, requested_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`;
+      
+      const requestRes = await client.query(requestSql, [
+        'product',
+        0,                    // 0 signifies a brand new product creation
+        'CREATE_NEW_PRODUCT', // Specific flag for the Admin Approval module
+        null,
+        JSON.stringify(data), // Store the dynamic form data
+        'pending',
+        userId
+      ]);
+
+      const requestId = requestRes.rows[0].id;
+
+      // 2. Create the entry in activity_log so the user sees "Pending" in their sidebar
+      await client.query(`
+        INSERT INTO activity_log (
+          entity_id, field_name, old_value, new_value, status, created_by, request_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [0, 'CREATE_NEW_PRODUCT', null, JSON.stringify(data), 'pending', userId, requestId]
+      );
+
+      await client.query('COMMIT');
+      
+      return { 
+        id: 0, 
+        status: 'pending', 
+        message: "Product creation request submitted for Admin approval." 
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
-  return newProduct;
 };
 
 const deleteProduct = async (id, userId) => {

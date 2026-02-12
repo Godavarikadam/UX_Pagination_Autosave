@@ -17,7 +17,7 @@ function LedgerTable() {
   const { productId: urlProductId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { searchTerm } = useOutletContext();
-  
+
   const [config, setConfig] = useState({ defaultLimit: null, defaultSort: "id", isLoaded: false });
 
   // Pagination & Sorting State
@@ -29,33 +29,36 @@ function LedgerTable() {
 
   const [products, setProducts] = useState([]);
   const [total, setTotal] = useState(0);
-  
+
   // FIX: Initialize as true so "No items found" doesn't flash on mount
-  const [loading, setLoading] = useState(true); 
+  const [loading, setLoading] = useState(true);
   const [refreshCounter, setRefreshCounter] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
-const [pendingRequests,setPendingRequests]=useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
   // --- HANDLERS ---
+  const pendingAdditions = pendingRequests.filter(
+    (r) => r.field_name === "CREATE_NEW_PRODUCT" && r.status === "pending"
+  );
 
-useEffect(() => {
-  const fetchPending = async () => {
-    try {
-     const res = await api.get('/products/approvals/list');
-     
-      const items = res.data.items || (Array.isArray(res.data) ? res.data : []);
+  useEffect(() => {
+    const fetchPending = async () => {
+      try {
+        const res = await api.get('/products/approvals/list');
 
-      setPendingRequests(items);
-    } catch (err) {
-      console.error("Failed to fetch pending requests", err);
-    }
-  };
+        const items = res.data.items || (Array.isArray(res.data) ? res.data : []);
 
-  fetchPending();
-  window.addEventListener("activityUpdated", fetchPending);
-  return () => window.removeEventListener("activityUpdated", fetchPending);
-}, [refreshCounter]);
+        setPendingRequests(items);
+      } catch (err) {
+        console.error("Failed to fetch pending requests", err);
+      }
+    };
+
+    fetchPending();
+    window.addEventListener("activityUpdated", fetchPending);
+    return () => window.removeEventListener("activityUpdated", fetchPending);
+  }, [refreshCounter]);
 
 
   const handleSelectAll = (e) => {
@@ -173,8 +176,8 @@ useEffect(() => {
     fetchSettings();
   }, []);
 
-useEffect(() => {
-   
+  useEffect(() => {
+
     if (!urlLimit && !config.isLoaded) return;
 
     const fetchProducts = async () => {
@@ -236,8 +239,24 @@ useEffect(() => {
     <div className="flex flex-col h-full bg-white relative font-sans">
       <div className="px-4 py-2.5  bg-white z-20">
         <div className="flex flex-wrap items-center gap-4 px-4">
-          <div className="text-[12px] font-semibold text-gray-500">
-            Total Items: <span className="text-[#3674B5]">{total}</span>
+          {/* Change near line 155 */}
+          <div className="text-[12px] font-semibold text-gray-500 flex items-center gap-3">
+            <div>
+              Total Items: <span className="text-[#3674B5] font-black">{total}</span>
+            </div>
+
+            {pendingAdditions.length > 0 && (
+              <button
+                onClick={() => navigate('/approvals?status=pending&field=CREATE_NEW_PRODUCT')}
+                className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 border border-amber-200 rounded-full hover:bg-amber-100 transition-all group"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-amber-700 uppercase tracking-tight">
+                  Pending  {pendingAdditions.length} New Products
+                </span>
+
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
@@ -267,7 +286,7 @@ useEffect(() => {
               <button
                 onClick={() => {
                   const newParams = new URLSearchParams();
-                  if (urlLimit) newParams.set("limit", urlLimit); 
+                  if (urlLimit) newParams.set("limit", urlLimit);
                   newParams.set("page", "1");
                   newParams.set("sortBy", "id");
                   newParams.set("sortOrder", "asc");
@@ -280,12 +299,12 @@ useEffect(() => {
             )}
 
 
-  <button 
-    onClick={handleAddProduct} 
-    className="px-3 py-2 rounded-lg bg-[#3674B5] text-white text-[11px] font-bold shadow-sm hover:bg-[#2d6298] transition-all font-semibold"
-  >
-    + Add Product
-  </button>
+            <button
+              onClick={handleAddProduct}
+              className="px-3 py-2 rounded-lg bg-[#3674B5] text-white text-[11px] font-bold shadow-sm hover:bg-[#2d6298] transition-all font-semibold"
+            >
+              + Add Product
+            </button>
 
 
           </div>
@@ -315,62 +334,63 @@ useEffect(() => {
                 {isAdmin && <th className="w-[80px] px-4 py-3 text-center text-[10px] font-black text-gray-900 uppercase border border-slate-300">Delete</th>}
               </tr>
             </thead>
-           <tbody>
-  {loading && products.length === 0 ? (
-    // Render 5 pulsing "Ghost Rows" to match your table structure
-    [...Array(5)].map((_, i) => (
-      <tr key={i} className="animate-pulse border-b border-slate-50">
-        {isAdmin && (
-          <td className="px-4 py-4 text-center">
-            <div className="h-3 w-3 bg-slate-100 rounded mx-auto" />
-          </td>
-        )}
-        <td className="px-4 py-4">
-          <div className="h-3 w-12 bg-slate-100 rounded mx-auto" />
-        </td>
-        <td className="px-7 py-4">
-          <div className="h-3 w-3/4 bg-slate-100 rounded" />
-        </td>
-        <td className="px-4 py-4">
-          <div className="h-3 w-16 bg-slate-100 rounded mx-auto" />
-        </td>
-        <td className="px-4 py-4">
-          <div className="h-3 w-20 bg-slate-100 rounded mx-auto" />
-        </td>
-        <td className="px-4 py-4 text-center">
-          <div className="h-4 w-4 bg-slate-100 rounded mx-auto" />
-        </td>
-        {isAdmin && (
-          <td className="px-4 py-4 text-center">
-            <div className="h-4 w-4 bg-slate-100 rounded mx-auto" />
-          </td>
-        )}
-      </tr>
-    ))
-  ) : products.length > 0 ? (
-    products.map((p) => (
-     <LedgerRow 
-  key={p.id} 
-  product={p} 
-  isSelected={selectedIds.includes(p.id)} 
-  // 🟢 Change 'onSelect' to 'onCheckboxToggle'
-  onCheckboxToggle={() => setSelectedIds(prev => prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id])}
-  onRowClick={() => handleRowClick(p)}
-  onDeleteSuccess={handleDeleteSuccess}
-  isAdmin={isAdmin} 
-  overallStatus={p.current_request_status}
- pendingChanges={pendingRequests.filter(r => String(r.entity_id) === String(p.id))}
-/>
-    ))
-  ) : (
+            <tbody>
 
-    <tr>
-      <td colSpan={isAdmin ? 7 : 5} className="py-24 text-center text-slate-400 font-medium italic">
-        No items found matching your criteria.
-      </td>
-    </tr>
-  )}
-</tbody>
+
+              {loading && products.length === 0 ? (
+                // Render 5 pulsing "Ghost Rows" to match your table structure
+                [...Array(5)].map((_, i) => (
+                  <tr key={i} className="animate-pulse border-b border-slate-50">
+                    {isAdmin && (
+                      <td className="px-4 py-4 text-center">
+                        <div className="h-3 w-3 bg-slate-100 rounded mx-auto" />
+                      </td>
+                    )}
+                    <td className="px-4 py-4">
+                      <div className="h-3 w-12 bg-slate-100 rounded mx-auto" />
+                    </td>
+                    <td className="px-7 py-4">
+                      <div className="h-3 w-3/4 bg-slate-100 rounded" />
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="h-3 w-16 bg-slate-100 rounded mx-auto" />
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="h-3 w-20 bg-slate-100 rounded mx-auto" />
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <div className="h-4 w-4 bg-slate-100 rounded mx-auto" />
+                    </td>
+                    {isAdmin && (
+                      <td className="px-4 py-4 text-center">
+                        <div className="h-4 w-4 bg-slate-100 rounded mx-auto" />
+                      </td>
+                    )}
+                  </tr>
+                ))
+              ) : products.length > 0 ? (
+                products.map((p) => (
+                  <LedgerRow
+                    key={p.id}
+                    product={p}
+                    isSelected={selectedIds.includes(p.id)}
+                    // 🟢 Change 'onSelect' to 'onCheckboxToggle'
+                    onCheckboxToggle={() => setSelectedIds(prev => prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id])}
+                    onRowClick={() => handleRowClick(p)}
+                    onDeleteSuccess={handleDeleteSuccess}
+                    isAdmin={isAdmin}
+                    overallStatus={p.current_request_status}
+                    pendingChanges={pendingRequests.filter(r => String(r.entity_id) === String(p.id))}
+                  />
+                ))
+              ) : pendingAdditions.length === 0 ? (
+                <tr>
+                  <td colSpan={isAdmin ? 7 : 5} className="py-24 text-center text-slate-400 font-medium italic">
+                    No items found matching your criteria.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
           </table>
         </div>
       </div>
@@ -386,10 +406,10 @@ useEffect(() => {
       </div>
 
       {drawerOpen && (
-        <ProductDrawer 
-          product={selectedProduct} 
-          isOpen={drawerOpen} 
-          onClose={handleCloseDrawer} 
+        <ProductDrawer
+          product={selectedProduct}
+          isOpen={drawerOpen}
+          onClose={handleCloseDrawer}
           onUpdate={handleRowUpdate}
         />
       )}
@@ -408,13 +428,13 @@ useEffect(() => {
             </div>
 
             <div className="flex items-center gap-1.5 pr-1">
-              <button 
+              <button
                 onClick={() => setSelectedIds([])}
                 className="px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:bg-slate-100 rounded-md transition-all"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleBulkDelete}
                 className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] font-black rounded-md transition-all shadow-sm active:scale-95"
               >

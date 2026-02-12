@@ -22,3 +22,7 @@ export const deleteProduct = (productId) => {
 export const getSettings = () => {
   return api.get('/settings');
 };
+
+export const requestApproval = (payload) => {
+  return api.post('/products/approvals/request', payload);
+};

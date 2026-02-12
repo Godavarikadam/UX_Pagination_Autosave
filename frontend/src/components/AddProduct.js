@@ -20,11 +20,11 @@ const AddProduct = ({ onClose, refreshData }) => {
           return {
             ...field,
             parsed: parseFunction(field.jsSource, field.required),
-            value: "" 
+            value: ""
           };
         });
         setEntities(initialized);
-      }catch (err) {
+      } catch (err) {
         console.error("Failed to load dynamic schema", err);
       }
     };
@@ -48,25 +48,39 @@ const AddProduct = ({ onClose, refreshData }) => {
 
   // 3. The "Bridge" Save (To PostgreSQL)
   const onSave = async () => {
-    const payload = {};
-    entities.forEach(field => {
-      const dbColumn = PRODUCT_MAPPING[field.label];
-      if (dbColumn) payload[dbColumn] = field.value;
-    });
+    try {
+      const payload = {};
+      entities.forEach(field => {
+        const dbColumn = PRODUCT_MAPPING[field.label];
+        if (dbColumn) payload[dbColumn] = field.value;
+      });
 
-    // Save to your existing Postgres API
-    await axios.post("/api/products", payload);
-    refreshData();
-    onClose();
+      // 🟢 CHANGE: Capture the result from the API
+      const response = await axios.post("/api/products", payload);
+
+      // 🟢 CHANGE: Show feedback to the user
+      // If the backend returned a 200/201, it will contain our 'message'
+      if (response.data.status === 'pending') {
+        alert("Success! Your product has been submitted to the Admin for approval.");
+      } else {
+        alert("Product added successfully!");
+      }
+
+      refreshData();
+      onClose();
+    } catch (err) {
+      console.error("Save failed", err);
+      alert(err.response?.data?.message || "Failed to add product. Please check your inputs.");
+    }
   };
 
   return (
     <div className="p-4 bg-white border border-[#3674B5] rounded-xl">
       {entities.map((f, i) => (
-        <FormField 
+        <FormField
           key={i}
           index={i}
-          field={{...f, type: f.parsed.type, options: f.parsed.options}}
+          field={{ ...f, type: f.parsed.type, options: f.parsed.options }}
           onValueChange={handleValueChange}
           error={errors[f.label]}
         />

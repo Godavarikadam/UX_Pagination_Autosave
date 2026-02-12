@@ -10,6 +10,7 @@ const ProductLogs = ({ a, isAdmin, navigate }) => {
   const isPending = a.status === "pending";
   const isRejected = a.status === "rejected";
   const isSuccess = a.status === "success" || a.status === "approved";
+  const isNewProductRequest = a.field_name === "CREATE_NEW_PRODUCT";
   
   
   const isOwnLog = String(a.created_by) === String(currentUser?.id) || 
@@ -20,7 +21,7 @@ const ProductLogs = ({ a, isAdmin, navigate }) => {
     if (isRejected) return "Rejected";
     if (isSuccess) {
       if (isLogicLog) return "Schema Update"; 
-      if (!a.old_value || a.old_value === "null" || a.old_value === "None") return "Added";
+     if (isNewProductRequest || !a.old_value || a.old_value === "null") return "Added";
       if (a.new_value === "inactive" || a.new_value === "deleted") return "Deleted";
       return (a.updated_at && a.updated_at !== a.created_at) ? "Approved" : "Updated";
     }
@@ -28,6 +29,8 @@ const ProductLogs = ({ a, isAdmin, navigate }) => {
   };
 
   const actionStatus = getActionStatus();
+
+
 
   const displayName = a.field_name 
     ? a.field_name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
@@ -43,11 +46,24 @@ const ProductLogs = ({ a, isAdmin, navigate }) => {
     "Schema Update": "text-purple-600 bg-purple-500"
   };
 
-  const formatVal = (val) => {
-    if (val === null || val === undefined) return "None";
-    if (typeof val === 'object') return "{ JSON }";
-    return String(val);
-  };
+  
+const formatVal = (val) => {
+  if (val === null || val === undefined || val === "null") return "None";
+  
+  // If it's a string that looks like JSON, try to parse it
+  if (typeof val === 'string' && (val.startsWith('{') || val.startsWith('['))) {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed.join(", ");
+      if (typeof parsed === 'object') return parsed.name || "Object Data";
+    } catch (e) {
+      return val;
+    }
+  }
+  
+  if (typeof val === 'object') return val.name || "Object";
+  return String(val);
+};
 
   return (
     <div key={a.id} className={`group flex flex-col min-h-[100px] rounded-md border transition-all duration-300 mb-2 overflow-hidden hover:shadow-md ${
@@ -71,34 +87,53 @@ const ProductLogs = ({ a, isAdmin, navigate }) => {
 
       <div className="px-3 py-2">
         <div className="flex justify-between items-start">
-          <h4 className="text-[10px] font-semibold text-slate-800">
-            {isLogicLog ? (
-               <span className="flex items-center gap-1 text-purple-700">
-                 <HiOutlineCode size={12} /> 
-               </span>
-            ) : (
-              <>Product <span className="text-[#3674B5]">#{a.entity_id}</span></>
-            )}
-            
-           
-            {(!isOwnLog) && (
-              <span className="text-slate-600 font-normal ml-1 ">
-                by User {a.created_by || a.requested_by}
-              </span>
-            )}
-          </h4>
-       
+         <h4 className="text-[10px] font-semibold text-slate-800">
+  {isLogicLog ? (
+    <span className="flex items-center gap-1 text-purple-700">
+      <HiOutlineCode size={12} /> 
+    </span>
+  ) : (
+    <>
+      {/* 🟢 Logic: Replace 'Product #0' with 'New Product' for Pending/Rejected */}
+      {(isPending || isRejected) && isNewProductRequest ? (
+        <span className="text-cyan-700 font-bold uppercase tracking-tight">
+          New Product
+        </span>
+      ) : (
+        <>
+          Product <span className="text-[#3674B5]">#{a.entity_id}</span>
+        </>
+      )}
+    </>
+  )}
+  
+  {!isOwnLog && (
+    <span className="text-slate-600 font-normal ml-1">
+      by User {a.created_by || a.requested_by}
+    </span>
+  )}
+</h4>
           {isAdmin && isPending && (
-            <button 
-              onClick={() => {
-                if (!a.request_id && !isLogicLog) return toast.error("Log entry is missing its reference ID");
-                navigate(isLogicLog ? `/products/form` : `/approvals/${a.entity_id}/${a.request_id}`);
-              }}
-              className="flex items-center gap-1 px-2 py-0.5 bg-amber-200 text-black rounded text-[8px] font-semibold uppercase hover:bg-amber-400"
-            >
-              <HiOutlineEye size={10} /> Review
-            </button>
+          <button 
+  onClick={() => {
+    // 1. Basic Validation
+    if (!a.request_id && !isLogicLog) {
+      return toast.error("Log entry is missing its reference ID");
+    }
+    if (isLogicLog) {
+      navigate(`/products/form`);
+    } else if (isNewProductRequest) {
+      navigate(`/approvals/new/${a.request_id}`);
+    } else {
+      navigate(`/approvals/${a.entity_id}/${a.request_id}`);
+    }
+  }}
+  className="flex items-center gap-1 px-2 py-0.5 bg-amber-200 text-black rounded text-[8px] font-semibold uppercase hover:bg-amber-400"
+>
+  <HiOutlineEye size={10} /> Review
+</button>
           )}
+
         </div>
       <div className="mt-2">
  
@@ -108,17 +143,42 @@ const ProductLogs = ({ a, isAdmin, navigate }) => {
     {isLogicLog ? "Config" : displayName}:
   </span>
 
-  {actionStatus === "Added" ? (
-    <div className="flex items-center overflow-hidden">
-      <span className="text-[10px] font-bold text-cyan-700 truncate">
-        {isOwnLog ? "New Product Added" : `Added by User ${a.created_by}`}
-      </span>
-      
+
+{actionStatus === "Added" || isNewProductRequest ? (
+  <div className="flex flex-col gap-1 w-full">
+    <div className="flex items-center gap-2">
+    <span className="text-[10px] font-bold text-cyan-700">
+  {(() => {
+    // 1. If it's the user's own log, show "Submission"
+    if (isOwnLog) return "New Product Added";
+    
+  })()}
+</span>
     </div>
-  ) : (
+ 
+ 
+ {/* 🟢 SAFE VERSION: Prevents crash if JSON is invalid */}
+{isNewProductRequest && a.new_value && (
+  <div className="text-[9px] bg-cyan-50/50 p-1 rounded border border-cyan-100 text-cyan-800 font-mono mt-1">
+    {(() => {
+      try {
+        const parsed = typeof a.new_value === 'string' ? JSON.parse(a.new_value) : a.new_value;
+        return parsed.name || parsed.product_name || "Unnamed Product";
+      } catch (e) {
+        return "New Product Data";
+      }
+    })()}
+  </div>
+)}
+
+  </div>
+) 
+   : (
     <div className="flex items-center gap-1.5 overflow-hidden">
       
       <div className="text-[11px] font-semibold text-slate-400 line-through truncate">
+
+
         {formatVal(a.old_value)}
       </div>
       

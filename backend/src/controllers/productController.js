@@ -132,6 +132,7 @@ const updateProduct = async (req, res, next) => {
     next(err); 
   }
 };
+
 const createProduct = async (req, res, next) => {
   try {
     const data = req.body;
@@ -218,52 +219,52 @@ const updateFieldLogic = async (req, res, next) => {
   }
 };
 
-const handleDecision = async (req, res) => {
-  const { requestId, decision, reason } = req.body;
-  const adminId = req.user.id;
+// const handleDecision = async (req, res) => {
+//   const { requestId, decision, reason } = req.body;
+//   const adminId = req.user.id;
 
-  const requestRes = await pool.query("SELECT * FROM pending_requests WHERE id = $1", [requestId]);
-  const request = requestRes.rows[0];
+//   const requestRes = await pool.query("SELECT * FROM pending_requests WHERE id = $1", [requestId]);
+//   const request = requestRes.rows[0];
 
-  if (!request) return res.status(404).json({ message: "Request not found" });
+//   if (!request) return res.status(404).json({ message: "Request not found" });
 
-  if (decision === 'approved') {
-    await productService.updateProduct(request.entity_id, { [request.field_name]: request.new_value }, adminId);
+//   if (decision === 'approved') {
+//     await productService.updateProduct(request.entity_id, { [request.field_name]: request.new_value }, adminId);
     
-    await pool.query(
-      "UPDATE pending_requests SET status = 'approved', admin_id = $1, updated_at = NOW() WHERE id = $2", 
-      [adminId, requestId]
-    );
+//     await pool.query(
+//       "UPDATE pending_requests SET status = 'approved', admin_id = $1, updated_at = NOW() WHERE id = $2", 
+//       [adminId, requestId]
+//     );
 
-    // 🟢 FIX: Pass the specific new_value so the service updates the correct log row
-    await activityService.updateLogStatus(
-        request.entity_id, 
-        request.field_name, 
-        'success', 
-        null, 
-        adminId, 
-        request.new_value // Add this parameter
-    );
+//     // 🟢 FIX: Pass the specific new_value so the service updates the correct log row
+//     await activityService.updateLogStatus(
+//         request.entity_id, 
+//         request.field_name, 
+//         'success', 
+//         null, 
+//         adminId, 
+//         request.new_value // Add this parameter
+//     );
 
-  } else {
-    await pool.query(
-        "UPDATE pending_requests SET status = 'rejected', rejection_reason = $1, admin_id = $2, updated_at = NOW() WHERE id = $3", 
-        [reason, adminId, requestId]
-    );
+//   } else {
+//     await pool.query(
+//         "UPDATE pending_requests SET status = 'rejected', rejection_reason = $1, admin_id = $2, updated_at = NOW() WHERE id = $3", 
+//         [reason, adminId, requestId]
+//     );
     
-    // 🟢 FIX: Do the same for rejection
-    await activityService.updateLogStatus(
-        request.entity_id, 
-        request.field_name, 
-        'rejected', 
-        reason, 
-        adminId, 
-        request.new_value
-    );
-  }
+//     // 🟢 FIX: Do the same for rejection
+//     await activityService.updateLogStatus(
+//         request.entity_id, 
+//         request.field_name, 
+//         'rejected', 
+//         reason, 
+//         adminId, 
+//         request.new_value
+//     );
+//   }
 
-  res.json({ success: true });
-};
+//   res.json({ success: true });
+// };
 
 const getApprovalList = async (req, res, next) => {
   try {
@@ -362,22 +363,28 @@ const getPendingCount = async (req, res, next) => {
 
 const getApprovalDetail = async (req, res, next) => {
   try {
-    const { productId, requestId } = req.params;
+    let { productId, requestId } = req.params;
 
-    // 🛑 CRASH PREVENTION: Validate numeric input
-    if (!requestId || requestId === 'null' || isNaN(parseInt(requestId))) {
-      return res.status(400).json({ success: false, message: "Valid numeric ID required" });
+    const pId = productId === 'new' ? 0 : parseInt(productId);
+    const rId = parseInt(requestId);
+
+    if (isNaN(rId)) {
+      return res.status(400).json({ success: false, message: "Valid Request ID required" });
     }
 
+    // 🟢 FIX: Changed u1.name/u2.name to u1.id (or use u1.username if it exists)
     const query = `
-      SELECT p.*, u1.id as requester_id, u2.id as admin_id
+      SELECT 
+        p.*, 
+        u1.id as requester_id, 
+        u2.id as admin_id
       FROM pending_requests p 
       JOIN users u1 ON p.requested_by = u1.id 
       LEFT JOIN users u2 ON p.admin_id = u2.id
-      WHERE p.id = $1 AND p.entity_id = $2
+      WHERE p.id = $1
     `;
 
-    const result = await pool.query(query, [parseInt(requestId), parseInt(productId)]);
+    const result = await pool.query(query, [rId]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: "No matching record found" });
@@ -385,8 +392,109 @@ const getApprovalDetail = async (req, res, next) => {
 
     res.json(result.rows[0]);
   } catch (err) {
+    console.error("Database Error:", err);
     next(err);
   }
+};
+
+const handleDecision = async (req, res) => {
+  const { requestId, decision, reason } = req.body;
+  const adminId = req.user.id;
+
+  try {
+    const requestRes = await pool.query("SELECT * FROM pending_requests WHERE id = $1", [requestId]);
+    const request = requestRes.rows[0];
+
+    if (!request) return res.status(404).json({ message: "Request not found" });
+
+    if (decision === 'approved') {
+      let finalEntityId = request.entity_id;
+
+      if (request.field_name === 'CREATE_NEW_PRODUCT') {
+        const productData = JSON.parse(request.new_value);
+        const newProduct = await productService.createProduct(productData, request.requested_by, 'admin',true);
+        finalEntityId = newProduct.id;
+      
+        await pool.query(
+          "UPDATE pending_requests SET status = 'approved', entity_id = $1, admin_id = $2, updated_at = NOW() WHERE id = $3",
+          [finalEntityId, adminId, requestId]
+        );
+
+        await pool.query(
+          `UPDATE activity_log 
+           SET status = 'success', entity_id = $1, admin_id = $2, updated_at = NOW() 
+           WHERE request_id = $3`,
+          [finalEntityId, adminId, requestId]
+        );
+      } else {
+       
+        await productService.updateProduct(request.entity_id, { [request.field_name]: request.new_value }, adminId);
+        
+        await pool.query(
+          "UPDATE pending_requests SET status = 'approved', admin_id = $1, updated_at = NOW() WHERE id = $2", 
+          [adminId, requestId]
+        );
+        await pool.query(
+          "UPDATE activity_log SET status = 'success', admin_id = $1, updated_at = NOW() WHERE request_id = $2",
+          [adminId, requestId]
+        );
+      }
+    } else {
+     
+      await pool.query(
+        "UPDATE pending_requests SET status = 'rejected', rejection_reason = $1, admin_id = $2, updated_at = NOW() WHERE id = $3", 
+        [reason, adminId, requestId]
+      );
+
+      await pool.query(
+        "UPDATE activity_log SET status = 'rejected', rejection_reason = $1, admin_id = $2, updated_at = NOW() WHERE request_id = $3",
+        [reason, adminId, requestId]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Decision Error:", err);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+
+const submitApprovalRequest = async (req, res) => {
+    try {
+        const { entity_id, field_name, old_value, new_value, updated_by } = req.body;
+
+        const query = `
+            INSERT INTO pending_requests 
+            (entity_id, field_name, old_value, new_value, requested_by, status) 
+            VALUES ($1, $2, $3, $4, $5, 'pending')
+            RETURNING id
+        `;
+
+        const result = await pool.query(query, [
+            entity_id || 0, 
+            field_name, 
+            old_value || null, 
+            new_value, 
+            updated_by
+        ]);
+
+        // 🟢 FIX 4: Insert into activity_log so it shows up in the Activity Feed immediately
+        await pool.query(
+          `INSERT INTO activity_log (entity_type, entity_id, field_name, old_value, new_value, status, created_by, request_id)
+           VALUES ('product', $1, $2, $3, $4, 'pending', $5, $6)`,
+          [entity_id || 0, field_name, old_value || null, new_value, updated_by, result.rows[0].id]
+        );
+
+        res.status(201).json({ 
+            success: true, 
+            message: "Request submitted for admin approval",
+            requestId: result.rows[0].id 
+        });
+    } catch (error) {
+        console.error("Submission Error:", error);
+        res.status(500).json({ message: "Failed to submit approval request" });
+    }
 };
 
 module.exports = {
@@ -401,4 +509,5 @@ module.exports = {
   getApprovalList,
   getPendingCount,
   getApprovalDetail,
+  submitApprovalRequest 
 };
