@@ -110,7 +110,8 @@ function RegisterPage() {
                 onChange={(e) => setRole(e.target.value)}
               >
                 <option value="admin">Admin</option>
-                <option value="editor">User</option>
+                <option value="editor">Editor</option>
+                <option value="viewer">Viewer</option>
               </select>
             </div>
 

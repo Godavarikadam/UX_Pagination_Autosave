@@ -497,6 +497,103 @@ const submitApprovalRequest = async (req, res) => {
     }
 };
 
+const getViewerProducts = async (req, res, next) => {
+    try {
+      
+        const { category, priceRange, search, sort } = req.query;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 12;
+        const offset = (page - 1) * limit;
+        let whereClauses = [
+            "p.status = 'active'",
+            `NOT EXISTS (
+                SELECT 1 FROM activity_log al 
+                WHERE al.entity_id = p.id 
+                AND al.entity_type = 'product' 
+                AND al.status = 'pending'
+            )`
+        ];
+        let queryParams = [];
+
+        // 3. DYNAMIC FILTERS: Category
+        if (category && category !== 'All') {
+            queryParams.push(category);
+            whereClauses.push(`p.category = $${queryParams.length}`);
+        }
+
+        // 4. DYNAMIC FILTERS: Price Range (Matching Viewer.js values)
+        if (priceRange === "Under 500") {
+            whereClauses.push("p.unit_price < 500");
+        } else if (priceRange === "500-1000") {
+            whereClauses.push("p.unit_price >= 500 AND p.unit_price <= 1000");
+        } else if (priceRange === "1000-1500") {
+            whereClauses.push("p.unit_price >= 1000 AND p.unit_price <= 1500");
+        } else if (priceRange === "Over 1500") {
+            whereClauses.push("p.unit_price > 1500");
+        }
+
+        // 5. SEARCH LOGIC (Name or ID)
+        if (search && search.trim() !== "") {
+            queryParams.push(`%${search}%`);
+            const searchIndex = `$${queryParams.length}`;
+            whereClauses.push(`(p.name ILIKE ${searchIndex} OR p.id::TEXT ILIKE ${searchIndex})`);
+        }
+
+        const finalWhere = `WHERE ${whereClauses.join(" AND ")}`;
+
+        // 6. DYNAMIC SORTING LOGIC
+        let orderByClause = "p.created_at DESC"; // Default: Relevance
+        if (sort === "price-low") {
+            orderByClause = "p.unit_price ASC";
+        } else if (sort === "price-high") {
+            orderByClause = "p.unit_price DESC";
+        }
+
+        // 7. DEFINE QUERIES
+        const dataQuery = `
+            SELECT p.id, p.name, p.quantity, p.unit_price, p.description, p.category 
+            FROM products p 
+            ${finalWhere} 
+            ORDER BY ${orderByClause} 
+            LIMIT ${limit} OFFSET ${offset}`;
+
+        const countQuery = `SELECT COUNT(*) FROM products p ${finalWhere}`;
+        
+        const statsQuery = `
+            SELECT COUNT(*) FROM products p 
+            WHERE p.status = 'active' 
+            AND p.quantity < 5
+            AND NOT EXISTS (
+                SELECT 1 FROM activity_log al 
+                WHERE al.entity_id = p.id 
+                AND al.entity_type = 'product' 
+                AND al.status = 'pending'
+            )`;
+
+        // 8. EXECUTION
+        const [dataRes, totalCountRes, statsRes] = await Promise.all([
+            pool.query(dataQuery, queryParams),
+            pool.query(countQuery, queryParams),
+            pool.query(statsQuery)
+        ]);
+
+        // 9. RESPONSE
+        res.json({
+            items: dataRes.rows,
+            total: parseInt(totalCountRes.rows[0].count),
+            stats: {
+                lowStock: parseInt(statsRes.rows[0].count)
+            }
+        });
+
+    } catch (err) {
+        console.error("Marketplace Fetch Error:", err.message);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+};
+
+
+
 module.exports = {
   getProducts,
   updateProduct,
@@ -509,5 +606,7 @@ module.exports = {
   getApprovalList,
   getPendingCount,
   getApprovalDetail,
-  submitApprovalRequest 
+  submitApprovalRequest ,
+  getViewerProducts
+
 };

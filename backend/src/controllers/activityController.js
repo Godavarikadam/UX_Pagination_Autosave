@@ -3,7 +3,7 @@ const activityService = require('../services/activityService');
 
 const getActivityLogs = async (req, res, next) => {
   try {
-    const { role, userId, type } = req.query; // 🟢 Added 'type'
+    const { role, userId, type } = req.query;
 
     if (!role) return res.json({ items: [], total: 0 });
 
@@ -11,28 +11,26 @@ const getActivityLogs = async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 25;
     const offset = (page - 1) * limit;
 
-    let queryParams = [];
-    let whereClause = "";
-
- // In getActivityLogs (Backend)
-if (role !== 'admin') {
-  // 🟢 CHANGE: Allow users to see logs they created OR logs linked to their requests
-  whereClauseProduct = `WHERE (a.created_by = $1 OR a.request_id IN (SELECT id FROM pending_requests WHERE requested_by = $1))`;
-  whereClauseField = "WHERE created_by = $1";
-  queryParams.push(parseInt(userId));
-}
-
-    // --- SEPARATED LOGIC ---
-    
-    // 1. If fetching 'logic' (Field Schema Logs)
+    // --- 1. FIELD SCHEMA LOGS (logic) ---
     if (type === 'logic') {
+      let logicWhere = "";
+      let logicParams = [];
+
+      if (role !== 'admin') {
+        logicWhere = "WHERE created_by = $1";
+        logicParams.push(parseInt(userId));
+      }
+
       const fieldResult = await pool.query(
         `SELECT *, 'logic' as log_type FROM field_schema_logs 
-         ${whereClause} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
-        queryParams
+         ${logicWhere} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
+        logicParams
       );
 
-      const totalRes = await pool.query(`SELECT COUNT(*) FROM field_schema_logs ${whereClause}`, queryParams);
+      const totalRes = await pool.query(
+        `SELECT COUNT(*) FROM field_schema_logs ${logicWhere}`, 
+        logicParams
+      );
 
       const normalizedFieldLogs = (fieldResult.rows || []).map(row => ({
         ...row,
@@ -40,21 +38,57 @@ if (role !== 'admin') {
         product_name: row.field_name ? `Schema: ${row.field_name}` : "Global Schema Update"
       }));
 
-      return res.json({ items: normalizedFieldLogs, total: parseInt(totalRes.rows[0].count), page, limit });
+      return res.json({ 
+        items: normalizedFieldLogs, 
+        total: parseInt(totalRes.rows[0].count), 
+        page, 
+        limit 
+      });
+    }
+// --- 2. PRODUCT ACTIVITY LOGS ---
+    let productWhere = "";
+    let productParams = [];
+    const uid = parseInt(userId);
+
+    if (role === 'admin') {
+      // 🟢 Admin: Sees ALL logs from ALL users, but filters out Purchase logs 
+      // to keep the main product activity feed clean.
+      productWhere = "WHERE a.field_name NOT ILIKE '%Purchase%'";
+    } 
+    else if (role === 'editor') {
+      // 🟢 Editor: Sees ONLY their own logs and also filters out Purchase logs.
+      productWhere = "WHERE a.created_by = $1 AND a.field_name NOT ILIKE '%Purchase%'";
+      productParams.push(uid);
+    } 
+    else if (role === 'viewer') {
+      // 🟢 Viewer: Sees ONLY their own logs, and specifically NEEDS to see 
+      // 'Purchase' entity logs (their order history).
+      productWhere = "WHERE a.created_by = $1";
+      productParams.push(uid);
+    } else {
+      // Safety fallback
+      return res.json({ items: [], total: 0 });
     }
 
-    // 2. If fetching 'product' (Activity Logs)
-    const productWhere = role !== 'admin' ? "WHERE a.created_by = $1" : "";
     const productResult = await pool.query(
       `SELECT a.*, p.name as product_name, 'product' as log_type 
        FROM activity_log a LEFT JOIN products p ON a.entity_id = p.id
-       ${productWhere} ORDER BY a.created_at DESC LIMIT ${limit} OFFSET ${offset}`,
-      queryParams
+       ${productWhere} 
+       ORDER BY a.created_at DESC LIMIT ${limit} OFFSET ${offset}`,
+      productParams
     );
 
-    const totalProdRes = await pool.query(`SELECT COUNT(*) FROM activity_log a ${productWhere}`, queryParams);
+    const totalProdRes = await pool.query(
+      `SELECT COUNT(*) FROM activity_log a ${productWhere}`, 
+      productParams
+    );
 
-    return res.json({ items: productResult.rows, total: parseInt(totalProdRes.rows[0].count), page, limit });
+    return res.json({ 
+      items: productResult.rows, 
+      total: parseInt(totalProdRes.rows[0].count), 
+      page, 
+      limit 
+    });
 
   } catch (err) {
     console.error("Database Error:", err);

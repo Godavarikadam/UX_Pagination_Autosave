@@ -7,6 +7,15 @@ export const AuthContextProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const formatUser = (data) => ({
+    ...data,
+    loggedIn: true,
+    isAdmin: data.role === 'admin',
+    isEditor: data.role === 'editor',
+    isViewer: data.role === 'viewer',
+    canEdit: ['admin', 'editor'].includes(data.role), // Permission-based helper
+  });
+
   // 🔁 Restore auth for the current session only
   useEffect(() => {
     const token = sessionStorage.getItem('token');

@@ -42,13 +42,12 @@ function App() {
             }
           >
             <Route index element={<Navigate to="products" />} />
-
+<Route path="my-orders" element={<div />} />
             <Route path="products" element={<LedgerPage />}>
               <Route path="add" element={<div />} />
               <Route path="edit/:productId" element={<div />} />
             </Route>
 
-            {/* 🟢 UPDATED: Use AdminRoute and the correct component name */}
            <Route path="approvals" element={<Approval />}>
                <Route path=":productId/:requestId" element={<Approval />} />
             </Route>

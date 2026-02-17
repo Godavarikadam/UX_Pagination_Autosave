@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
-const VALID_ROLES = ['admin', 'editor'];
+const VALID_ROLES = ['admin', 'editor','viewer'];
 
 
 exports.registerUser = async (req, res) => {
@@ -14,7 +14,7 @@ exports.registerUser = async (req, res) => {
   }
 
   if (!VALID_ROLES.includes(role)) {
-    return res.status(400).json({ message: 'Invalid role. Only admin and editor are allowed.' });
+    return res.status(400).json({ message: 'Invalid role.' });
   }
 
   try {

@@ -44,7 +44,11 @@ const logActivity = async (entityType, entityId, fieldName, oldValue, newValue, 
 };
 
 // Add this to activityService.js
-const updateLogStatus = async (entityId, fieldName, status, reason = null,adminId=null) => {
+const updateLogStatus = async (entityId, fieldName, status, reason = null,adminId=null,role=null) => {
+  if (role === 'viewer') {
+     console.error("Viewers are not authorized to update log status.");
+     return;
+  }
   try {
     await pool.query(
       `UPDATE activity_log 
